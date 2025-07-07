@@ -69,11 +69,11 @@ export const formatCurrency = (value: number) => {
   }).format(value);
 };
 
-export const calculateTotals = (expenses: ExpenseCategory[]) => {
+export const calculateTotals = (expenses: any[]) => {
   const totalPlanned = expenses.reduce((sum, exp) => sum + exp.planned, 0);
   const totalReal = expenses.reduce((sum, exp) => sum + exp.real, 0);
   const variation = totalReal - totalPlanned;
-  
+
   return {
     totalPlanned,
     totalReal,
