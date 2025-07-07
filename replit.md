@@ -101,9 +101,28 @@ This is a full-stack financial dashboard application built with React and Expres
 - **TypeScript**: Strict mode with path mapping for imports
 - **Build Scripts**: Separate development and production workflows
 
+## Deployment Configuration
+
+### Vercel Setup
+- **API Structure**: Serverless functions in `/api` directory
+- **Build Configuration**: `vercel.json` with static build settings
+- **CORS Enabled**: All API endpoints support cross-origin requests
+- **In-Memory Storage**: Self-contained storage implementation for each serverless function
+- **Build Command**: Uses standard Vite build process
+
+### API Endpoints for Vercel
+- `/api/dashboard.js` - Main dashboard data endpoint
+- `/api/financial-data.js` - Financial data updates
+- `/api/expense-categories.js` - Expense category management
+- `/api/monthly-summary.js` - Monthly summary updates
+
 ## Changelog
 - July 07, 2025. Initial setup
+- July 07, 2025. Added Vercel deployment configuration and serverless API functions
+- July 07, 2025. Optimized application for manual Git upload (reduced from ~13k to ~25 files)
+- July 07, 2025. Created simplified dashboard components and removed unnecessary UI dependencies
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+File count requirement: Keep under 100 files for manual Git upload to avoid complex deployment processes.

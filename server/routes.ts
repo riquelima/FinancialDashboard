@@ -4,15 +4,14 @@ import { storage } from "./storage";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get dashboard data
-  app.get("/api/dashboard", async (req, res) => {
+  app.get('/api/dashboard', async (req, res) => {
     try {
-      const dashboardData = await storage.getDashboardData();
-      if (!dashboardData) {
-        return res.status(404).json({ message: "Dashboard data not found" });
-      }
-      res.json(dashboardData);
+      const data = await storage.getDashboardData();
+      res.setHeader('Cache-Control', 'no-cache');
+      res.json(data);
     } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
+      console.error('Dashboard error:', error);
+      res.status(500).json({ error: 'Failed to load dashboard' });
     }
   });
 

@@ -55,7 +55,7 @@
   --chart-3: hsl(30, 80%, 55%);
   --chart-4: hsl(280, 65%, 60%);
   --chart-5: hsl(340, 75%, 55%);
-  
+
   /* Custom financial dashboard colors */
   --slate-850: hsl(215, 28%, 17%);
   --slate-900: hsl(220, 39%, 11%);
@@ -70,7 +70,7 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
-  
+
   .dark {
     color-scheme: dark;
   }
@@ -135,4 +135,18 @@
 
 .status-exact {
   @apply bg-amber-600 text-white;
+}
+
+/* Simplified scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
 }
