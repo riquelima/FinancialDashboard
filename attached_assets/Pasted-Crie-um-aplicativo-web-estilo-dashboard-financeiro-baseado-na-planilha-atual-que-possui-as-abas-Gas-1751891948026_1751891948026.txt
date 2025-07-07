@@ -1,0 +1,63 @@
+Crie um aplicativo web estilo dashboard financeiro baseado na planilha atual que possui as abas “Gastos Meio Mês”, “Gastos Fim do Mês” e “Divisão dos Gastos”.
+
+📊 Objetivo do app:
+Exibir um painel moderno, minimalista e responsivo com os seguintes blocos visuais:
+
+---
+
+🔹 **BLOCO 1 — Receitas e Saldo**
+- Puxe os dados da aba “Gastos Meio Mês” e “Gastos Fim do Mês”
+- Exiba os valores de:
+  - Salário (dia 15 e dia 30)
+  - Benefícios
+  - FGTS e Privacy
+  - Total líquido e saldo restante
+- Mostre um box verde com o total que "Sobrou" de cada quinzena
+
+---
+
+🔹 **BLOCO 2 — Gastos por Categoria (Planejado vs Real)**
+- Use os dados da aba “Divisão dos Gastos”
+- Exiba os campos:
+  - Tipo de gasto (Essenciais, Não Essenciais, Investimentos, Torrar)
+  - Porcentagem (%)
+  - Valor Planejado
+  - Gasto Real
+  - Status (Abaixo, Acima, OK)
+- Use caixas coloridas:
+  - Verde para "Abaixo do Gasto"
+  - Vermelho para "Acima do Gasto"
+  - Amarelo para "No Limite"
+
+---
+
+🔹 **BLOCO 3 — Gráficos (Automáticos)**
+- Um gráfico de pizza com base nos campos da aba “Divisão dos Gastos”, usando a coluna de valores planejados
+- Um gráfico de barras comparando “Planejado” x “Real” para cada tipo de gasto
+
+---
+
+🎨 Estilo visual:
+- Tema escuro elegante com contraste suave (inspirado no Notion ou Tailwind)
+- Tipografia: sans-serif moderna
+- Layout responsivo: deve funcionar bem em desktop e mobile
+- Bordas arredondadas, sombras suaves nos cards e ícones visuais
+
+---
+
+✅ Funcionalidades extras:
+- Adicione um botão de "Atualizar dados" no topo
+- Use ícones para cada categoria (💡 para essenciais, 🍕 para não essenciais, 📈 para investimentos, 😎 para torrar)
+- Ordene os cards do maior gasto para o menor
+
+---
+
+📌 Observações:
+- Os dados devem ser lidos em tempo real da planilha conectada
+- A aba “Divisão dos Gastos” é a fonte principal para o painel financeiro
+
+---
+
+🧪 Resultado esperado:
+Um dashboard financeiro limpo, responsivo, dividido em cards, com gráficos automáticos e leitura clara do planejamento mensal.
+
