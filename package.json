@@ -2,5 +2,13 @@
   "name": "financial-dashboard-static",
   "version": "1.0.0",
   "description": "A static financial dashboard application.",
-  "private": true
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^4.0.0"
+  }
 }
