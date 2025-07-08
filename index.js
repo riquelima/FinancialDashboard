@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // --- SETUP ---
@@ -11,7 +12,8 @@ const DEMO_USER_ID = 'a7a3a8e4-1d3c-4d24-9a25-3e28a9b2b543';
 // --- DOM ELEMENTS ---
 const loader = document.getElementById('loader-container');
 const dashboardContent = document.getElementById('dashboard-content');
-const analyzeDataButton = document.getElementById('analyze-data-button');
+const monthFilter = document.getElementById('month-filter');
+const yearFilter = document.getElementById('year-filter');
 
 // --- EDIT MODE ELEMENTS ---
 const editIncomeButton = document.getElementById('edit-income-button');
@@ -30,8 +32,10 @@ let isIncomeEditing = false;
 let isCategoryEditing = false;
 let currentIncomeData = [];
 let allIncomeSources = [];
+let allExpenseCategories = [];
 let currentSpendingByCategory = [];
 let currentBudgetId = null; // Store the current budget ID
+let currentTotalIncome = 0;
 
 
 // --- UTILITY FUNCTIONS ---
@@ -50,7 +54,7 @@ function renderErrorState(message) {
    dashboardContent.innerHTML = `<div class="bg-red-900 border border-red-700 text-red-200 p-6 rounded-xl text-center max-w-3xl mx-auto">
       <h2 class="font-bold text-lg mb-2">Ocorreu um Erro Inesperado</h2>
       <p class="font-mono text-sm bg-slate-900 p-2 rounded">${message}</p>
-      <p class="mt-4 text-red-300 text-sm">Se o erro persistir, tente executar o script SQL de correção fornecido na nossa conversa para reiniciar a base de dados.</p>
+      <p class="mt-4 text-red-300 text-sm">Se o erro persistir, pode ser necessário ajustar a base de dados. Tente atualizar a página ou selecionar outro período.</p>
     </div>`;
    showLoader(false);
 }
@@ -154,16 +158,44 @@ function renderCategoryCards(spendingByCategory) {
             progressText = `Economizou ${formatCurrency(diff)} (${percentageUnder}% abaixo)`;
         }
 
-        const plannedAmountHTML = isCategoryEditing
-          ? `<input
-                type="number"
-                class="category-planned-input bg-slate-700 border border-slate-600 text-brand-text-primary rounded-md px-2 py-1 w-32 text-right font-bold"
-                value="${Number(cat.planned).toFixed(2)}"
-                step="0.01"
-             />`
-          : `<span class="font-bold">${formatCurrency(cat.planned)}</span>`;
-
         const emoji = categoryEmojis[cat.name] || categoryEmojis.default;
+        
+        let percentageHTML, plannedAmountHTML, gastoRealHTML;
+
+        if (isCategoryEditing) {
+            percentageHTML = `
+                <div class="flex items-center">
+                    <input
+                        type="number"
+                        class="category-percentage-input bg-slate-700 border border-slate-600 text-brand-text-primary rounded-md px-2 py-1 w-20 text-right font-bold"
+                        value="${cat.percentageOfTotalPlanned.toFixed(0)}"
+                        step="1"
+                        min="0"
+                        max="100"
+                    />
+                    <span class="ml-1 font-bold">%</span>
+                </div>
+            `;
+            plannedAmountHTML = `
+                <input
+                    type="number"
+                    class="category-planned-input bg-slate-700 border border-slate-600 text-brand-text-primary rounded-md px-2 py-1 w-32 text-right font-bold"
+                    value="${Number(cat.planned).toFixed(2)}"
+                    step="0.01"
+                />`;
+            gastoRealHTML = `
+                <input
+                    type="number"
+                    class="category-real-input bg-slate-700 border border-slate-600 text-brand-text-primary rounded-md px-2 py-1 w-32 text-right font-bold"
+                    value="${Number(cat.real).toFixed(2)}"
+                    step="0.01"
+                />`;
+        } else {
+            percentageHTML = `<span class="font-bold">${cat.percentageOfTotalPlanned.toFixed(0)}%</span>`;
+            plannedAmountHTML = `<span class="font-bold">${formatCurrency(cat.planned)}</span>`;
+            gastoRealHTML = `<span class="font-bold">${formatCurrency(cat.real)}</span>`;
+        }
+
         const categoryHeaderHTML = isCategoryEditing
           ? `<div class="flex items-center gap-2">
                <button class="remove-category-item text-brand-red hover:text-red-400 p-1 rounded-full">
@@ -173,7 +205,6 @@ function renderCategoryCards(spendingByCategory) {
              </div>`
           : `<h3 class="font-semibold text-brand-text-primary flex items-center gap-2">${emoji} ${cat.name}</h3>`;
 
-
         return `
             <div class="bg-brand-card p-6 rounded-xl category-card" data-id="${cat.id}" data-category-id="${cat.category_id}">
               <div class="flex justify-between items-start mb-4">
@@ -181,9 +212,9 @@ function renderCategoryCards(spendingByCategory) {
                 <span class="text-xs font-semibold px-2.5 py-1 rounded-full ${statusColorClass}">${statusText}</span>
               </div>
               <div class="space-y-3 text-sm">
-                <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Porcentagem</span><span class="font-bold">${cat.percentageOfTotalPlanned.toFixed(0)}%</span></div>
+                <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Porcentagem</span>${percentageHTML}</div>
                 <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Planejado</span>${plannedAmountHTML}</div>
-                <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Gasto Real</span><span class="font-bold">${formatCurrency(cat.real)}</span></div>
+                <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Gasto Real</span>${gastoRealHTML}</div>
               </div>
               <div class="mt-4">
                 <div class="bg-slate-700 rounded-full h-2 w-full">
@@ -288,81 +319,6 @@ function renderSummary(totalPlanned, totalSpent, variation) {
 
 
 // --- DATA LOGIC ---
-async function createTestData() {
-  console.log("Creating BLANK test data for demo user:", DEMO_USER_ID);
-  const userId = DEMO_USER_ID;
-  
-  try {
-    // --- 1. CLEANUP OLD DATA ---
-    const { data: oldBudgets } = await db.from('budgets').select('id').eq('user_id', userId);
-    if(oldBudgets && oldBudgets.length > 0) {
-        const budgetIds = oldBudgets.map(b => b.id);
-        console.log("Cleaning old data...");
-        await db.from('transactions').delete().in('budget_id', budgetIds);
-        await db.from('income_entries').delete().in('budget_id', budgetIds);
-        await db.from('budget_items').delete().in('budget_id', budgetIds);
-        await db.from('budgets').delete().in('id', budgetIds);
-    }
-    await db.from('expense_categories').delete().eq('user_id', userId);
-    await db.from('income_sources').delete().eq('user_id', userId);
-
-    // --- 2. SETUP BASE CATEGORIES & SOURCES ---
-    const { data: categories, error: catError } = await db.from('expense_categories').insert([
-        { name: 'Gastos Essenciais', type: 'essencial', user_id: userId },
-        { name: 'Gastos Não Essenciais', type: 'nao-essencial', user_id: userId },
-        { name: 'Investimentos', type: 'investimento', user_id: userId },
-        { name: 'Torrar', type: 'torrar', user_id: userId },
-    ]).select();
-    if(catError) throw catError;
-
-    const { data: sources, error: srcError } = await db.from('income_sources').insert([
-        { name: 'Salário', user_id: userId }, { name: 'Benefícios', user_id: userId },
-        { name: 'Privacy', user_id: userId }, { name: 'FGTS', user_id: userId },
-        { name: 'Prêmios', user_id: userId },
-    ]).select();
-    if(srcError) throw srcError;
-
-    // --- 3. CREATE NEW BUDGET ---
-    const now = new Date();
-    const { data: budget, error: budgetError } = await db.from('budgets').insert({
-        month: now.getMonth() + 1,
-        year: now.getFullYear(),
-        user_id: userId,
-    }).select().single();
-    if(budgetError) throw budgetError;
-
-    // --- 4. CREATE "CLEAN SLATE" DATA ---
-
-    // Budget Items: create them with 0 planned amount
-    const catMap = Object.fromEntries(categories.map(c => [c.name, c.id]));
-    const { error: itemsError } = await db.from('budget_items').insert([
-        { budget_id: budget.id, category_id: catMap['Gastos Essenciais'], planned_amount: 0 },
-        { budget_id: budget.id, category_id: catMap['Gastos Não Essenciais'], planned_amount: 0 },
-        { budget_id: budget.id, category_id: catMap['Investimentos'], planned_amount: 0 },
-        { budget_id: budget.id, category_id: catMap['Torrar'], planned_amount: 0 },
-    ]);
-    if(itemsError) throw itemsError;
-
-    // Income Entries: only one "Salário" with amount 0 to match screenshot
-    const srcMap = Object.fromEntries(sources.map(s => [s.name, s.id]));
-    const midMonthDate = new Date(now.getFullYear(), now.getMonth(), 15).toISOString().split('T')[0];
-    const { error: incomeError } = await db.from('income_entries').insert([
-        { budget_id: budget.id, source_id: srcMap['Salário'], amount: 0.00, received_at: midMonthDate },
-    ]);
-    if(incomeError) throw incomeError;
-    
-    // Transactions: NO transactions will be created, so "Gasto Real" starts at 0.
-    
-    console.log("Blank test data created successfully.");
-    return budget.id;
-
-  } catch (error) {
-    console.error("Error during test data creation:", error);
-    const message = error.message || 'Ocorreu um erro desconhecido.';
-    const details = error.details ? `Detalhes: ${error.details}` : '';
-    throw new Error(`Erro ao criar dados de teste: ${message} ${details}`);
-  }
-}
 
 async function fetchAndRenderDashboard(budgetId) {
   console.log("Fetching and rendering dashboard for budget:", budgetId);
@@ -379,6 +335,11 @@ async function fetchAndRenderDashboard(budgetId) {
     const { data: incomeSources, error: sourcesError } = await db.from('income_sources').select('*').eq('user_id', DEMO_USER_ID);
     if(sourcesError) throw new Error(`Erro ao buscar fontes de receita: ${sourcesError.message}`);
     allIncomeSources = incomeSources;
+
+    const { data: expenseCategories, error: expenseCatError } = await db.from('expense_categories').select('*').eq('user_id', DEMO_USER_ID);
+    if (expenseCatError) throw new Error(`Erro ao buscar categorias de despesa: ${expenseCatError.message}`);
+    allExpenseCategories = expenseCategories;
+    
     const incomeSourceMap = Object.fromEntries(incomeSources.map(s => [s.id, s]));
     
     const { data: budgetItemsData, error: budgetItemsError } = await db.from('budget_items').select('*, expense_categories(*)').eq('budget_id', budgetId);
@@ -394,6 +355,7 @@ async function fetchAndRenderDashboard(budgetId) {
     }));
     
     const totalIncome = fullIncomeData.reduce((acc, entry) => acc + Number(entry.amount), 0);
+    currentTotalIncome = totalIncome;
     const totalSpent = transactionsData.reduce((acc, tx) => acc + Number(tx.amount), 0);
     const totalPlanned = budgetItemsData.reduce((acc, item) => acc + Number(item.planned_amount), 0);
     const remainingBalance = totalIncome - totalSpent;
@@ -456,7 +418,6 @@ async function saveIncomeChanges() {
         const sourceNameToIdMap = new Map(allIncomeSources.map(s => [s.name.toLowerCase(), s.id]));
 
         // --- Step 1: Collect all changes from the DOM ---
-        const originalIds = new Set(currentIncomeData.map(d => d.id));
         const entriesFromDom = [];
         document.querySelectorAll('.income-row').forEach(row => {
             const id = row.dataset.id ? parseInt(row.dataset.id, 10) : null;
@@ -573,35 +534,30 @@ async function saveCategoryChanges() {
     try {
         if (!currentBudgetId) throw new Error("ID do Orçamento não foi encontrado.");
 
-        const { data: allExpenseCategories, error: catFetchError } = await db.from('expense_categories').select('id, name').eq('user_id', DEMO_USER_ID);
-        if (catFetchError) throw new Error(`Erro ao buscar categorias existentes: ${catFetchError.message}`);
-        const categoryNameToIdMap = new Map(allExpenseCategories.map(c => [c.name.toLowerCase(), c.id]));
-        
-        const originalBudgetItemIds = new Set(currentSpendingByCategory.map(d => d.id));
+        // Fetch the latest category list to ensure we have all IDs.
+        const { data: existingCategories, error: fetchError } = await db.from('expense_categories').select('id, name').eq('user_id', DEMO_USER_ID);
+        if (fetchError) throw new Error(`Erro ao buscar categorias existentes: ${fetchError.message}`);
+        const categoryNameToIdMap = new Map(existingCategories.map(c => [c.name.toLowerCase(), c.id]));
+
+        // --- 1. Collect all data and intentions from the DOM ---
         const itemsFromDom = [];
         document.querySelectorAll('.category-card').forEach(card => {
             const id = card.dataset.id ? parseInt(card.dataset.id, 10) : null;
             const isNew = card.classList.contains('new-category-card');
-            
-            const plannedInput = card.querySelector('.category-planned-input');
-            const plannedAmount = parseFloat(plannedInput.value) || 0;
-            
-            let categoryName = '';
+            const plannedAmount = parseFloat(card.querySelector('.category-planned-input').value) || 0;
+            const realAmount = parseFloat(card.querySelector('.category-real-input').value) || 0;
+            let categoryName;
             let categoryId = card.dataset.categoryId ? parseInt(card.dataset.categoryId, 10) : null;
 
             if (isNew) {
-                const nameInput = card.querySelector('.category-name-input');
-                categoryName = nameInput.value.trim();
-                if (categoryName) {
-                    itemsFromDom.push({ id, isNew, plannedAmount, categoryName, categoryId });
-                }
+                categoryName = card.querySelector('.category-name-input').value.trim();
             } else {
-                 const nameElem = card.querySelector('h3');
-                 categoryName = nameElem ? nameElem.textContent : '';
-                 itemsFromDom.push({ id, isNew, plannedAmount, categoryName, categoryId });
+                categoryName = card.querySelector('h3').textContent.trim().split(' ').slice(1).join(' ');
             }
+            itemsFromDom.push({ id, isNew, plannedAmount, realAmount, categoryName, categoryId });
         });
 
+        // --- 2. Create new categories if necessary (must happen before main save) ---
         const newCategoryNames = [...new Set(
             itemsFromDom
                 .filter(item => item.isNew && item.categoryName && !categoryNameToIdMap.has(item.categoryName.toLowerCase()))
@@ -609,58 +565,66 @@ async function saveCategoryChanges() {
         )];
 
         if (newCategoryNames.length > 0) {
-            const newCategoryRecords = newCategoryNames.map(name => ({
-                name, user_id: DEMO_USER_ID, type: 'nao-essencial'
-            }));
+            const newCategoryRecords = newCategoryNames.map(name => ({ name, user_id: DEMO_USER_ID, type: 'nao-essencial' }));
             const { data: createdCategories, error } = await db.from('expense_categories').insert(newCategoryRecords).select();
             if (error) throw new Error(`Erro ao criar nova(s) categoria(s): ${error.message}`);
             createdCategories.forEach(c => categoryNameToIdMap.set(c.name.toLowerCase(), c.id));
         }
         
-        const toInsert = [];
-        const toUpdate = [];
-        const currentIdsInDom = new Set();
+        const promises = [];
 
-        for (const item of itemsFromDom) {
-            if (item.isNew) {
-                const finalCategoryId = categoryNameToIdMap.get(item.categoryName.toLowerCase());
-                if (finalCategoryId) {
-                    toInsert.push({ budget_id: currentBudgetId, category_id: finalCategoryId, planned_amount: item.plannedAmount });
-                }
-            } else {
-                currentIdsInDom.add(item.id);
-                const originalItem = currentSpendingByCategory.find(d => d.id === item.id);
-                if (originalItem && Math.abs(originalItem.planned - item.plannedAmount) > 0.001) {
-                     toUpdate.push({
-                        id: item.id,
-                        planned_amount: item.plannedAmount,
-                        budget_id: originalItem.budget_id,
-                        category_id: originalItem.category_id
-                     });
-                }
+        // --- 3. Handle Deletions ---
+        const categoryIdsInDom = new Set(itemsFromDom.map(item => item.categoryId).filter(Boolean));
+        const categoriesToDelete = currentSpendingByCategory
+            .filter(cat => !categoryIdsInDom.has(cat.category_id))
+            .map(cat => cat.category_id);
+
+        if (categoriesToDelete.length > 0) {
+            for (const catId of categoriesToDelete) {
+                promises.push(db.rpc('remove_category_from_budget', { p_budget_id: currentBudgetId, p_category_id: catId }));
             }
         }
-        
-        const deletedIds = [...originalBudgetItemIds].filter(id => !currentIdsInDom.has(id));
 
-        if (deletedIds.length > 0) {
-            const { error } = await db.from('budget_items').delete().in('id', deletedIds);
-            if (error) throw new Error(`Falha ao remover categorias do orçamento: ${error.message}`);
-        }
-        if (toUpdate.length > 0) {
-            const { error } = await db.from('budget_items').upsert(toUpdate);
-            if (error) throw new Error(`Falha ao atualizar orçamento: ${error.message}`);
-        }
-        if (toInsert.length > 0) {
-            const { error } = await db.from('budget_items').insert(toInsert);
-            if (error) throw new Error(`Falha ao adicionar novas categorias ao orçamento: ${error.message}`);
+        // --- 4. Handle Updates/Creations via a single atomic RPC call ---
+        const budgetItemsPayload = itemsFromDom
+            .map(item => {
+                const categoryId = item.isNew
+                    ? categoryNameToIdMap.get(item.categoryName.toLowerCase())
+                    : item.categoryId;
+                
+                if (!categoryId) return null; // Skip if no valid category ID
+
+                return {
+                    category_id: categoryId,
+                    planned_amount: item.plannedAmount,
+                    real_amount: item.realAmount
+                };
+            })
+            .filter(Boolean); // Remove nulls
+
+        if (budgetItemsPayload.length > 0) {
+            promises.push(db.rpc('save_all_budget_changes', {
+                p_budget_id: currentBudgetId,
+                p_items_to_update: budgetItemsPayload
+            }));
         }
 
+        // --- 5. Execute all database operations and check for errors ---
+        const results = await Promise.all(promises);
+        for (const res of results) {
+            if (res.error) {
+                // Throw the first error encountered
+                throw new Error(`Database operation failed: ${res.error.message}`);
+            }
+        }
+
+        // --- 6. Final success step: toggle mode and refresh UI ---
         toggleCategoriesEditMode(false);
         await fetchAndRenderDashboard(currentBudgetId);
+
     } catch (error) {
         console.error("Failed to save category changes:", error);
-        renderErrorState(`Erro ao salvar orçamento: ${error.message}`);
+        renderErrorState(`Erro ao salvar orçamento: ${error.message || error}`);
     } finally {
         showLoader(false);
     }
@@ -717,6 +681,7 @@ function handleCategoryEditEvents(e) {
     if (addBtn) {
         const newCard = document.createElement('div');
         newCard.className = 'bg-brand-card p-6 rounded-xl category-card new-category-card';
+        newCard.dataset.categoryId = ''; // No category ID yet
         newCard.innerHTML = `
             <div class="flex justify-between items-start mb-4">
                 <div class="flex items-center gap-2 flex-grow">
@@ -727,11 +692,18 @@ function handleCategoryEditEvents(e) {
                 </div>
             </div>
             <div class="space-y-3 text-sm">
-                <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Porcentagem</span><span class="font-bold">0%</span></div>
+                <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Porcentagem</span>
+                    <div class="flex items-center">
+                        <input type="number" class="category-percentage-input bg-slate-700 border border-slate-600 text-brand-text-primary rounded-md px-2 py-1 w-20 text-right font-bold" value="0" step="1" min="0" max="100">
+                        <span class="ml-1 font-bold">%</span>
+                    </div>
+                </div>
                 <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Planejado</span>
                     <input type="number" class="category-planned-input bg-slate-700 border border-slate-600 text-brand-text-primary rounded-md px-2 py-1 w-32 text-right font-bold" value="0.00" step="0.01">
                 </div>
-                <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Gasto Real</span><span class="font-bold">${formatCurrency(0)}</span></div>
+                <div class="flex justify-between items-center"><span class="text-brand-text-secondary">Gasto Real</span>
+                     <input type="number" class="category-real-input bg-slate-700 border border-slate-600 text-brand-text-primary rounded-md px-2 py-1 w-32 text-right font-bold" value="0.00" step="0.01">
+                </div>
             </div>
             <div class="mt-4">
                 <div class="bg-slate-700 rounded-full h-2 w-full"><div class="bg-brand-green rounded-full h-2" style="width: 0%"></div></div>
@@ -749,28 +721,89 @@ function handleCategoryEditEvents(e) {
     }
 }
 
-// --- INITIALIZATION ---
-async function initializeDashboard() {
+
+// --- INITIALIZATION & FILTER LOGIC ---
+function populateFilters() {
+  const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+  const currentMonth = new Date().getMonth();
+  monthFilter.innerHTML = months.map((month, index) => `<option value="${index + 1}" ${index === currentMonth ? 'selected' : ''}>${month}</option>`).join('');
+
+  const currentYear = new Date().getFullYear();
+  let yearOptions = '';
+  for (let i = currentYear - 2; i <= currentYear + 1; i++) {
+    yearOptions += `<option value="${i}" ${i === currentYear ? 'selected' : ''}>${i}</option>`;
+  }
+  yearFilter.innerHTML = yearOptions;
+}
+
+async function createBlankBudgetForPeriod(month, year) {
+  console.log(`Creating new blank budget for ${month}/${year}`);
+  // 1. Create budget entry
+  const { data: budget, error: budgetError } = await db.from('budgets').insert({
+      month,
+      year,
+      user_id: DEMO_USER_ID,
+  }).select().single();
+  if (budgetError) throw new Error(`Erro ao criar novo orçamento: ${budgetError.message}`);
+
+  // 2. Get user's expense categories
+  const { data: categories, error: catError } = await db.from('expense_categories').select('id').eq('user_id', DEMO_USER_ID);
+  if (catError) throw new Error(`Erro ao buscar categorias para novo orçamento: ${catError.message}`);
+
+  // 3. Create budget items with 0 planned amount
+  if (categories && categories.length > 0) {
+    const newBudgetItems = categories.map(cat => ({
+      budget_id: budget.id,
+      category_id: cat.id,
+      planned_amount: 0,
+    }));
+    const { error: itemsError } = await db.from('budget_items').insert(newBudgetItems);
+    if (itemsError) throw itemsError;
+  }
+  
+  console.log(`Blank budget created successfully with id: ${budget.id}`);
+  return budget.id;
+}
+
+async function findOrCreateBudgetForPeriod(month, year) {
+  const { data, error } = await db.from('budgets').select('id')
+      .eq('user_id', DEMO_USER_ID)
+      .eq('month', month)
+      .eq('year', year)
+      .limit(1);
+
+  if (error) throw new Error(`Falha ao verificar orçamento existente: ${error.message}`);
+  
+  if (data && data.length > 0) {
+      console.log(`Found existing budget for ${month}/${year} with id: ${data[0].id}`);
+      return data[0].id;
+  } else {
+      return await createBlankBudgetForPeriod(month, year);
+  }
+}
+
+async function handleFilterChange() {
     showLoader(true);
     try {
-        let budgetId;
-        const { data, error } = await db.from('budgets').select('id')
-            .eq('user_id', DEMO_USER_ID)
-            .order('year', { ascending: false }).order('month', { ascending: false }).limit(1);
-
-        if (error) throw new Error(`Falha ao verificar dados existentes: ${error.message}`);
-        
-        if (!data || data.length === 0) {
-            budgetId = await createTestData();
-        } else {
-            budgetId = data[0].id;
-        }
+        const selectedMonth = monthFilter.value;
+        const selectedYear = yearFilter.value;
+        const budgetId = await findOrCreateBudgetForPeriod(selectedMonth, selectedYear);
         await fetchAndRenderDashboard(budgetId);
+    } catch (error) {
+        console.error("Failed to load dashboard for selected period:", error);
+        renderErrorState(error.message);
+    } finally {
+        showLoader(false);
+    }
+}
 
+async function initializeDashboard() {
+    try {
+        populateFilters();
+        await handleFilterChange();
     } catch (error) {
         console.error("Dashboard initialization failed:", error);
         renderErrorState(error.message);
-    } finally {
         showLoader(false);
     }
 }
@@ -778,26 +811,58 @@ async function initializeDashboard() {
 document.addEventListener('DOMContentLoaded', () => {
     initializeDashboard();
 
-    analyzeDataButton.addEventListener('click', () => {
-        console.log("Analyze Data button clicked. Forcing test data recreation...");
-        showLoader(true);
-        createTestData()
-            .then((newBudgetId) => fetchAndRenderDashboard(newBudgetId))
-            .catch(error => {
-                console.error("Failed to recreate/render data:", error);
-                renderErrorState(error.message);
-            })
-            .finally(() => showLoader(false));
-    });
+    monthFilter.addEventListener('change', handleFilterChange);
+    yearFilter.addEventListener('change', handleFilterChange);
     
     // Add listeners for edit functionality
     document.getElementById('income-section-wrapper').addEventListener('click', handleIncomeEditEvents);
     editIncomeButton.addEventListener('click', () => toggleIncomeEditMode(true));
-    cancelIncomeButton.addEventListener('click', () => toggleIncomeEditMode(false));
+    cancelIncomeButton.addEventListener('click', () => {
+        toggleIncomeEditMode(false);
+        fetchAndRenderDashboard(currentBudgetId); // Discard changes by re-rendering
+    });
     saveIncomeButton.addEventListener('click', saveIncomeChanges);
     
-    document.getElementById('category-section-wrapper').addEventListener('click', handleCategoryEditEvents);
+    // Combined listener for all category card interactions
+    const categorySection = document.getElementById('category-section-wrapper');
+    categorySection.addEventListener('click', (e) => {
+        if (isCategoryEditing) {
+            handleCategoryEditEvents(e);
+        }
+    });
+    
+    // Listener for live input changes in category edit mode
+    categorySection.addEventListener('input', (e) => {
+        if (!isCategoryEditing) return;
+
+        const card = e.target.closest('.category-card');
+        if (!card) return;
+
+        if (e.target.matches('.category-planned-input')) {
+            // User edits a PLANNED amount: update its percentage based on total income
+            const plannedValue = parseFloat(e.target.value) || 0;
+            const percInput = card.querySelector('.category-percentage-input');
+            if (percInput && currentTotalIncome > 0) {
+                const newPercentage = (plannedValue / currentTotalIncome) * 100;
+                percInput.value = newPercentage.toFixed(0);
+            } else if (percInput) {
+                percInput.value = '0';
+            }
+        } else if (e.target.matches('.category-percentage-input')) {
+            // User edits a PERCENTAGE: update its PLANNED amount based on total income
+            const percentageValue = parseFloat(e.target.value) || 0;
+            const plannedInput = card.querySelector('.category-planned-input');
+            if (plannedInput) {
+                const newPlannedValue = currentTotalIncome * (percentageValue / 100);
+                plannedInput.value = newPlannedValue.toFixed(2);
+            }
+        }
+    });
+
     editCategoriesButton.addEventListener('click', () => toggleCategoriesEditMode(true));
-    cancelCategoriesButton.addEventListener('click', () => toggleCategoriesEditMode(false));
+    cancelCategoriesButton.addEventListener('click', () => {
+        toggleCategoriesEditMode(false);
+        fetchAndRenderDashboard(currentBudgetId); // Discard changes by re-rendering
+    });
     saveCategoriesButton.addEventListener('click', saveCategoryChanges);
 });
