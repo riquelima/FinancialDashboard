@@ -46,7 +46,14 @@
         display: none;
       }
     </style>
-  <link rel="stylesheet" href="/index.css">
+  <script type="importmap">
+{
+  "imports": {
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.50.3"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-brand-background text-brand-text-primary font-sans">
     <div id="loader-container" class="fixed inset-0 bg-brand-background bg-opacity-80 flex justify-center items-center z-50">
@@ -213,7 +220,6 @@
         </section>
       </main>
     </div>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script type="module" src="./index.js"></script>
   <script type="module" src="/index.tsx"></script>
 </body>

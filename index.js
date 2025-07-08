@@ -1,8 +1,8 @@
+import { createClient } from '@supabase/supabase-js';
 
 // --- SETUP ---
 const SUPABASE_URL = 'https://snqlviehipbgswztrwhw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNucWx2aWVoaXBiZ3N3enRyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4OTU5MzIsImV4cCI6MjA2NzQ3MTkzMn0.n8aaWZfg81hD9Fr26pFQcR33brpdzMpUMkkna61V2nI';
-const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // A static, unique ID for demonstration data. This bypasses the need for user authentication.
