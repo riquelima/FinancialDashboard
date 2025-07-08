@@ -28,8 +28,23 @@ const categorySaveCancelButtons = document.getElementById('category-save-cancel-
 // --- VIEW SWITCHING ELEMENTS ---
 const dashboardView = document.getElementById('dashboard-view');
 const statisticsView = document.getElementById('statistics-view');
+const simulatorView = document.getElementById('simulator-view');
 const navDashboardButton = document.getElementById('nav-dashboard');
 const navStatisticsButton = document.getElementById('nav-statistics');
+const navSimulatorButton = document.getElementById('nav-simulator');
+
+// --- SIMULATOR ELEMENTS ---
+const calculateFutureValueButton = document.getElementById('calculate-future-value');
+const calculateRequiredDepositButton = document.getElementById('calculate-required-deposit');
+
+// --- STATISTICS ELEMENTS ---
+const goalsListContainer = document.getElementById('goals-list');
+const monthlyEvolutionChartCanvas = document.getElementById('monthly-evolution-chart');
+const addGoalButton = document.getElementById('add-goal-button');
+const addGoalModal = document.getElementById('add-goal-modal');
+const addGoalFormModal = document.getElementById('add-goal-form-modal');
+const closeGoalModalButton = document.getElementById('close-goal-modal');
+const cancelGoalModalButton = document.getElementById('cancel-goal-modal');
 
 
 // --- STATE & GLOBAL DATA ---
@@ -41,8 +56,10 @@ let allExpenseCategories = [];
 let currentSpendingByCategory = [];
 let currentBudgetId = null;
 let currentTotalIncome = 0;
-let lastRenderedAnnualYear = null;
+let lastRenderedStatsYear = null;
 let activeView = 'dashboard';
+let monthlyEvolutionChart = null;
+const MONTH_NAMES = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 
 // --- UTILITY FUNCTIONS ---
@@ -335,9 +352,9 @@ async function handleCopyFromPrevious(sourceBudgetId) {
         if (error) throw error;
         
         await fetchAndRenderDashboard(currentBudgetId);
-        // After copying, the year might be the same, but we need to refresh the annual summary
+        
         const selectedYear = parseInt(yearFilter.value, 10);
-        await fetchAndRenderAnnualSummary(selectedYear);
+        await fetchAndRenderStatistics(selectedYear);
 
     } catch(error) {
         console.error("Failed to copy from previous month:", error);
@@ -377,78 +394,6 @@ async function renderDashboardActions(isBudgetEmpty) {
             </div>
         `;
         document.getElementById('copy-previous-month-button').addEventListener('click', () => handleCopyFromPrevious(prevBudget.id));
-    }
-}
-
-function renderAnnualSummary(annualData) {
-    const container = document.getElementById('annual-summary-container');
-    
-    const createCardHTML = (title, emoji, amount) => `
-        <div class="bg-brand-card p-6 rounded-xl">
-           <h3 class="font-semibold text-brand-text-secondary flex items-center gap-2">${emoji} ${title}</h3>
-           <p class="text-3xl font-bold mt-2 text-brand-text-primary">${formatCurrency(amount)}</p>
-        </div>
-    `;
-
-    container.innerHTML = createCardHTML('Ganho Anual', '🏆', annualData.totalAnnualIncome)
-                        + createCardHTML('Investimento Anual', '🐖', annualData.totalAnnualInvestment)
-                        + createCardHTML('Gastos Essenciais / Ano', '💡', annualData.totalAnnualEssentials);
-}
-
-async function fetchAndRenderAnnualSummary(year) {
-    const container = document.getElementById('annual-summary-container');
-    container.innerHTML = `
-        <div class="bg-brand-card p-6 rounded-xl animate-pulse h-28 col-span-1"></div>
-        <div class="bg-brand-card p-6 rounded-xl animate-pulse h-28 col-span-1"></div>
-        <div class="bg-brand-card p-6 rounded-xl animate-pulse h-28 col-span-1"></div>
-    `;
-
-    try {
-        if (allExpenseCategories.length === 0) {
-            const { data: expenseCategories, error: expenseCatError } = await db.from('expense_categories').select('*').eq('user_id', DEMO_USER_ID);
-            if (expenseCatError) throw new Error(`Erro ao buscar categorias de despesa: ${expenseCatError.message}`);
-            allExpenseCategories = expenseCategories;
-        }
-
-        const investmentCategory = allExpenseCategories.find(c => c.name === 'Investimentos');
-        const essentialCategory = allExpenseCategories.find(c => c.name === 'Gastos Essenciais');
-        
-        const { data: budgets, error: budgetsError } = await db.from('budgets').select('id').eq('user_id', DEMO_USER_ID).eq('year', year);
-        if (budgetsError) throw budgetsError;
-
-        if (!budgets || budgets.length === 0) {
-            renderAnnualSummary({ totalAnnualIncome: 0, totalAnnualInvestment: 0, totalAnnualEssentials: 0 });
-            return;
-        }
-
-        const budgetIds = budgets.map(b => b.id);
-        
-        const [
-            { data: allIncome, error: incomeError },
-            { data: allTransactions, error: transactionsError }
-        ] = await Promise.all([
-            db.from('income_entries').select('amount').in('budget_id', budgetIds),
-            db.from('transactions').select('amount, category_id').in('budget_id', budgetIds)
-        ]);
-
-        if (incomeError) throw incomeError;
-        if (transactionsError) throw transactionsError;
-
-        const totalAnnualIncome = allIncome.reduce((acc, entry) => acc + Number(entry.amount), 0);
-        
-        const totalAnnualInvestment = allTransactions
-            .filter(tx => tx.category_id === investmentCategory?.id)
-            .reduce((acc, tx) => acc + Number(tx.amount), 0);
-        
-        const totalAnnualEssentials = allTransactions
-            .filter(tx => tx.category_id === essentialCategory?.id)
-            .reduce((acc, tx) => acc + Number(tx.amount), 0);
-        
-        renderAnnualSummary({ totalAnnualIncome, totalAnnualInvestment, totalAnnualEssentials });
-        lastRenderedAnnualYear = year;
-    } catch (error) {
-        console.error("Failed to fetch annual summary:", error);
-        container.innerHTML = `<div class="col-span-full text-red-400 bg-brand-card p-4 rounded-xl">Falha ao carregar o resumo anual: ${error.message}</div>`;
     }
 }
 
@@ -526,27 +471,400 @@ async function fetchAndRenderDashboard(budgetId) {
   }
 }
 
+// --- STATISTICS RENDER FUNCTIONS ---
+function renderMonthlyEvolutionChart(monthlyData) {
+    const ctx = monthlyEvolutionChartCanvas.getContext('2d');
+    const labels = MONTH_NAMES;
+    
+    const datasets = [
+        {
+            label: 'Receita',
+            data: monthlyData.map(d => d.income),
+            borderColor: '#22c55e',
+            backgroundColor: 'rgba(34, 197, 94, 0.1)',
+            fill: true,
+            tension: 0.3,
+        },
+        {
+            label: 'Gasto Real',
+            data: monthlyData.map(d => d.spending),
+            borderColor: '#ef4444',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            fill: true,
+            tension: 0.3,
+        },
+        {
+            label: 'Investimentos',
+            data: monthlyData.map(d => d.investment),
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            fill: true,
+            tension: 0.3,
+        },
+    ];
+
+    if (monthlyEvolutionChart) {
+        monthlyEvolutionChart.data.labels = labels;
+        monthlyEvolutionChart.data.datasets = datasets;
+        monthlyEvolutionChart.update();
+    } else {
+        monthlyEvolutionChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: '#94a3b8' } },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => `${context.dataset.label}: ${formatCurrency(context.raw)}`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        ticks: { color: '#94a3b8', callback: (value) => formatCurrency(value) },
+                        grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                    },
+                    x: {
+                        ticks: { color: '#94a3b8' },
+                        grid: { color: 'rgba(148, 163, 184, 0.1)' }
+                    }
+                }
+            }
+        });
+    }
+}
+
+function renderHighlightMonths(monthlyData, year) {
+    const container = document.getElementById('highlight-months-container');
+    if (!monthlyData || monthlyData.length === 0) {
+        container.innerHTML = `<p class="text-brand-text-secondary col-span-full">Não há dados suficientes para exibir os meses destaque.</p>`;
+        return;
+    }
+
+    let highestSavings = { month: -1, value: -Infinity };
+    let lowestSavings = { month: -1, value: Infinity };
+
+    monthlyData.forEach((data, index) => {
+        if(data.income > 0 || data.spending > 0) {
+            const savings = data.income - data.spending;
+            if (savings > highestSavings.value) {
+                highestSavings = { month: index, value: savings };
+            }
+            if (savings < lowestSavings.value) {
+                lowestSavings = { month: index, value: savings };
+            }
+        }
+    });
+
+    const createCardHTML = (title, emoji, monthIndex, value, isPositive) => {
+        if (monthIndex === -1 || value === -Infinity || value === Infinity) return '<div class="bg-brand-card p-6 rounded-xl"><p class="text-brand-text-secondary">'+title+'</p><p class="text-lg font-bold mt-1">N/A</p></div>';
+        const monthName = MONTH_NAMES[monthIndex];
+        return `
+            <div class="bg-brand-card p-6 rounded-xl">
+                <p class="text-brand-text-secondary flex items-center gap-2">${emoji} ${title}</p>
+                <p class="text-xl font-bold mt-1">${monthName} ${year}</p>
+                <p class="text-lg font-bold ${isPositive ? 'text-brand-green' : 'text-brand-red'}">${isPositive ? '+' : ''}${formatCurrency(value)}</p>
+            </div>`;
+    };
+
+    container.innerHTML = createCardHTML('Maior Economia', '💰', highestSavings.month, highestSavings.value, true)
+                        + createCardHTML('Maior Gasto', '🔥', lowestSavings.month, lowestSavings.value, false);
+}
+
+function renderGoals(goals, annualData) {
+    if (!goalsListContainer) return;
+    goalsListContainer.innerHTML = '';
+    
+    if (goals.length === 0) {
+        goalsListContainer.innerHTML = `<p class="text-brand-text-secondary text-center italic py-8">Nenhuma meta definida ainda.</p>`;
+        return;
+    }
+
+    goals.forEach(goal => {
+        let currentAmount = 0;
+        if (goal.goal_type === 'save_total') {
+            currentAmount = annualData.totalAnnualSavings;
+        } else if (goal.goal_type === 'invest_total') {
+            currentAmount = annualData.totalAnnualInvestment;
+        }
+
+        const progress = goal.target_amount > 0 ? (currentAmount / goal.target_amount) * 100 : 0;
+        const isCompleted = progress >= 100;
+
+        const goalElement = document.createElement('div');
+        goalElement.className = `border-l-4 ${isCompleted ? 'border-brand-green' : 'border-brand-accent'} pl-4 py-2`;
+        goalElement.innerHTML = `
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="font-semibold text-brand-text-primary">${goal.description} ${isCompleted ? '✅' : ''}</p>
+                    <p class="text-sm text-brand-text-secondary">
+                        Meta: ${formatCurrency(goal.target_amount)} &bull; Progresso: ${formatCurrency(currentAmount)}
+                    </p>
+                </div>
+                <button class="delete-goal-button text-brand-red hover:text-red-400 p-1" data-id="${goal.id}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>
+            <div class="mt-2 bg-slate-700 rounded-full h-2.5 w-full">
+                <div class="bg-brand-green rounded-full h-2.5" style="width: ${Math.min(progress, 100)}%"></div>
+            </div>
+            <p class="text-right text-xs text-brand-text-secondary mt-1">${progress.toFixed(1)}%</p>
+        `;
+        goalsListContainer.appendChild(goalElement);
+    });
+}
+
+function renderBehavioralStats(monthlyData, allTransactionsForYear, allBudgetItemsForYear) {
+    const container = document.getElementById('behavioral-stats-container');
+    const monthsWithData = monthlyData.filter(d => d.income > 0 || d.spending > 0).length;
+
+    if (monthsWithData === 0) {
+        container.innerHTML = `<p class="text-brand-text-secondary col-span-full">Não há dados suficientes para os insights.</p>`;
+        return;
+    }
+
+    const totalSpending = monthlyData.reduce((sum, d) => sum + d.spending, 0);
+    const totalInvestment = monthlyData.reduce((sum, d) => sum + d.investment, 0);
+    const monthsInBlue = monthlyData.filter(d => d.income > d.spending).length;
+    
+    const categoryOverspends = {};
+    allBudgetItemsForYear.forEach(item => {
+        const realSpending = allTransactionsForYear
+            .filter(tx => tx.budget_id === item.budget_id && tx.category_id === item.category_id)
+            .reduce((sum, tx) => sum + tx.amount, 0);
+        if (realSpending > item.planned_amount && item.planned_amount > 0) {
+            const categoryName = item.expense_categories.name;
+            categoryOverspends[categoryName] = (categoryOverspends[categoryName] || 0) + 1;
+        }
+    });
+    
+    const topOverspenders = Object.entries(categoryOverspends).sort((a, b) => b[1] - a[1]).slice(0, 2).map(entry => entry[0]).join(', ') || 'Nenhuma';
+
+    const stats = [
+        { label: 'Média de gasto mensal', value: formatCurrency(totalSpending / monthsWithData) },
+        { label: 'Média de investimento', value: formatCurrency(totalInvestment / monthsWithData) },
+        { label: '% de meses no azul', value: `${((monthsInBlue / monthsWithData) * 100).toFixed(0)}%` },
+        { label: 'Categorias que mais extrapolam', value: topOverspenders },
+    ];
+
+    container.innerHTML = stats.map(stat => `
+        <div class="bg-brand-background p-4 rounded-lg">
+            <p class="text-sm text-brand-text-secondary">${stat.label}</p>
+            <p class="text-lg font-bold text-brand-text-primary">${stat.value}</p>
+        </div>
+    `).join('');
+}
+
+function renderFinancialScore(currentMonthData) {
+    const container = document.getElementById('financial-score-container');
+    if (!currentMonthData) {
+      container.innerHTML = `<p class="text-brand-text-secondary">Selecione um mês no dashboard para ver a pontuação.</p>`;
+      return;
+    }
+    
+    let score = 0;
+    let message = '';
+
+    const { totalIncome, totalPlanned, totalSpent, spendingByCategory } = currentMonthData;
+
+    if(totalSpent <= totalPlanned) { score += 10; }
+    const investmentCategory = spendingByCategory.find(c => c.name === 'Investimentos');
+    if(investmentCategory && investmentCategory.real >= investmentCategory.planned && investmentCategory.planned > 0) { score += 15; }
+    const funCategory = spendingByCategory.find(c => c.name === 'Torrar');
+    if(funCategory && funCategory.real > funCategory.planned) { score -= 5; }
+    if(totalIncome - totalSpent > 0) { score += 20; }
+    
+    if (score >= 40) message = '🏆 Você está mandando muito bem!';
+    else if (score >= 20) message = '👍 Bom trabalho! Continue assim.';
+    else if (score >= 0) message = '🤔 Há espaço para melhorar.';
+    else message = '🚨 Atenção! Seus hábitos precisam de ajuste.';
+
+    container.innerHTML = `
+        <p class="text-lg font-semibold text-brand-text-secondary">Pontuação do Mês</p>
+        <p class="text-6xl font-bold my-2" style="color: ${score >= 20 ? '#22c55e' : (score >= 0 ? '#f97316' : '#ef4444')}">${score}</p>
+        <p class="text-sm text-brand-text-secondary">${message}</p>
+    `;
+}
+
+function renderFutureProjection(monthlyData) {
+    const container = document.getElementById('future-projection-container');
+    const currentMonthIndex = new Date().getMonth();
+    const monthsWithData = monthlyData.filter((d, i) => (d.income > 0 || d.spending > 0) && i <= currentMonthIndex);
+    
+    if(monthsWithData.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const totalSavingsSoFar = monthsWithData.reduce((sum, d) => sum + (d.income - d.spending), 0);
+    const averageMonthlySavings = totalSavingsSoFar / monthsWithData.length;
+    const monthsRemaining = 11 - currentMonthIndex;
+    
+    const projectedEndBalance = totalSavingsSoFar + (averageMonthlySavings * monthsRemaining);
+
+    container.innerHTML = `
+        <div class="bg-brand-card p-6 rounded-xl">
+            <p class="text-brand-text-secondary flex items-center gap-2">🔮 Projeção para o Fim do Ano</p>
+            <p class="text-sm mt-2">Se continuar nesse ritmo, seu saldo acumulado no ano será de:</p>
+            <p class="text-2xl font-bold text-brand-accent mt-1">${formatCurrency(projectedEndBalance)}</p>
+        </div>
+    `;
+}
+
+function renderYearOverYearComparison(currentYearData, lastYearData, month) {
+    const container = document.getElementById('yoy-comparison-container');
+    const monthName = MONTH_NAMES[month];
+
+    const formatDiff = (current, last) => {
+        if (last === 0 && current > 0) return `<span class="text-xs text-brand-green">(+${formatCurrency(current)})</span>`;
+        if (last === 0) return '';
+        const diff = current - last;
+        const diffPercent = (diff / last) * 100;
+        const color = diff >= 0 ? 'text-brand-green' : 'text-brand-red';
+        return `<span class="text-xs ${color}">(${diff > 0 ? '+' : ''}${diffPercent.toFixed(0)}%)</span>`;
+    };
+
+    container.innerHTML = `
+        <table class="w-full text-sm text-left">
+            <thead class="text-xs text-brand-text-secondary uppercase">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Métrica</th>
+                    <th scope="col" class="px-6 py-3 text-right">${monthName} ${lastYearData.year}</th>
+                    <th scope="col" class="px-6 py-3 text-right">${monthName} ${currentYearData.year}</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="border-b border-slate-700">
+                    <th scope="row" class="px-6 py-4 font-medium whitespace-nowrap text-brand-text-primary">Receita</th>
+                    <td class="px-6 py-4 text-right">${formatCurrency(lastYearData.income)}</td>
+                    <td class="px-6 py-4 text-right">${formatCurrency(currentYearData.income)} ${formatDiff(currentYearData.income, lastYearData.income)}</td>
+                </tr>
+                <tr class="border-b border-slate-700">
+                    <th scope="row" class="px-6 py-4 font-medium whitespace-nowrap text-brand-text-primary">Gasto Real</th>
+                    <td class="px-6 py-4 text-right">${formatCurrency(lastYearData.spending)}</td>
+                    <td class="px-6 py-4 text-right">${formatCurrency(currentYearData.spending)} ${formatDiff(currentYearData.spending, lastYearData.spending)}</td>
+                </tr>
+                <tr>
+                    <th scope="row" class="px-6 py-4 font-medium whitespace-nowrap text-brand-text-primary">Investimento</th>
+                    <td class="px-6 py-4 text-right">${formatCurrency(lastYearData.investment)}</td>
+                    <td class="px-6 py-4 text-right">${formatCurrency(currentYearData.investment)} ${formatDiff(currentYearData.investment, lastYearData.investment)}</td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+}
+
+// --- STATISTICS DATA LOGIC ---
+async function fetchAndRenderStatistics(year) {
+    if (lastRenderedStatsYear === year) return;
+    
+    statisticsView.classList.add('animate-pulse');
+    
+    try {
+        const fetchYearData = async (targetYear) => {
+            const { data: budgets, error: budgetsError } = await db.from('budgets').select('id, month, year').eq('user_id', DEMO_USER_ID).eq('year', targetYear);
+            if (budgetsError) throw budgetsError;
+            if (budgets.length === 0) return { monthlyData: Array.from({ length: 12 }, () => ({ income: 0, spending: 0, investment: 0, year: targetYear })), allTransactions: [], allBudgetItems: [] };
+
+            const budgetIds = budgets.map(b => b.id);
+            const budgetIdToMonthMap = new Map(budgets.map(b => [b.id, b.month]));
+            const investmentCategory = allExpenseCategories.find(c => c.name === 'Investimentos');
+
+            const [{ data: allIncome, error: incomeErr }, { data: allTransactions, error: txErr }, { data: allBudgetItems, error: itemsErr }] = await Promise.all([
+                db.from('income_entries').select('amount, budget_id').in('budget_id', budgetIds),
+                db.from('transactions').select('amount, category_id, budget_id').in('budget_id', budgetIds),
+                db.from('budget_items').select('*, expense_categories(name)').in('budget_id', budgetIds),
+            ]);
+
+            if (incomeErr || txErr || itemsErr) throw (incomeErr || txErr || itemsErr);
+
+            const monthlyData = Array.from({ length: 12 }, () => ({ income: 0, spending: 0, investment: 0, year: targetYear }));
+            allIncome.forEach(entry => {
+                const month = budgetIdToMonthMap.get(entry.budget_id);
+                if (month) monthlyData[month - 1].income += Number(entry.amount);
+            });
+            allTransactions.forEach(tx => {
+                const month = budgetIdToMonthMap.get(tx.budget_id);
+                if (month) {
+                    monthlyData[month - 1].spending += Number(tx.amount);
+                    if (investmentCategory && tx.category_id === investmentCategory.id) {
+                        monthlyData[month - 1].investment += Number(tx.amount);
+                    }
+                }
+            });
+            return { monthlyData, allTransactions, allBudgetItems };
+        };
+
+        if (allExpenseCategories.length === 0) {
+            const { data, error } = await db.from('expense_categories').select('*').eq('user_id', DEMO_USER_ID);
+            if (error) throw error;
+            allExpenseCategories = data;
+        }
+
+        const [{monthlyData: currentYearMonthlyData, allTransactions: allTransactionsForCurrentYear, allBudgetItems: allBudgetItemsForCurrentYear}, 
+               {monthlyData: lastYearMonthlyData},
+               {data: goals, error: goalsError}] = await Promise.all([
+            fetchYearData(year),
+            fetchYearData(year - 1),
+            db.from('financial_goals').select('*').eq('user_id', DEMO_USER_ID)
+        ]);
+        
+        if (goalsError) throw goalsError;
+        
+        const totalAnnualInvestment = currentYearMonthlyData.reduce((sum, data) => sum + data.investment, 0);
+        const totalAnnualIncome = currentYearMonthlyData.reduce((sum, data) => sum + data.income, 0);
+        const totalAnnualSpending = currentYearMonthlyData.reduce((sum, data) => sum + data.spending, 0);
+        const annualData = {
+            totalAnnualInvestment,
+            totalAnnualSavings: totalAnnualIncome - totalAnnualSpending,
+        };
+        
+        // Render all components
+        renderBehavioralStats(currentYearMonthlyData, allTransactionsForCurrentYear, allBudgetItemsForCurrentYear);
+        renderFinancialScore(currentBudgetId ? { totalIncome: currentTotalIncome, totalPlanned: currentSpendingByCategory.reduce((s,c)=>s+c.planned,0), totalSpent: currentSpendingByCategory.reduce((s,c)=>s+c.real,0), spendingByCategory: currentSpendingByCategory } : null);
+        renderMonthlyEvolutionChart(currentYearMonthlyData);
+        renderHighlightMonths(currentYearMonthlyData, year);
+        renderFutureProjection(currentYearMonthlyData);
+        const currentDashboardMonth = parseInt(monthFilter.value, 10) - 1;
+        renderYearOverYearComparison(currentYearMonthlyData[currentDashboardMonth], lastYearMonthlyData[currentDashboardMonth], currentDashboardMonth);
+        renderGoals(goals, annualData);
+
+        lastRenderedStatsYear = year;
+    } catch (error) {
+        console.error("Failed to fetch statistics:", error);
+        statisticsView.innerHTML = `<div class="col-span-full text-red-400 bg-brand-card p-4 rounded-xl">Falha ao carregar as estatísticas: ${error.message}</div>`;
+    } finally {
+        statisticsView.classList.remove('animate-pulse');
+    }
+}
+
+
 // --- VIEW SWITCHING LOGIC ---
 function switchView(viewName) {
     if (viewName === activeView) return;
-
     activeView = viewName;
-    const isDashboard = viewName === 'dashboard';
 
-    dashboardView.classList.toggle('hidden', !isDashboard);
-    statisticsView.classList.toggle('hidden', isDashboard);
+    dashboardView.classList.toggle('hidden', viewName !== 'dashboard');
+    statisticsView.classList.toggle('hidden', viewName !== 'statistics');
+    simulatorView.classList.toggle('hidden', viewName !== 'simulator');
     
-    navDashboardButton.classList.toggle('active', isDashboard);
-    navDashboardButton.classList.toggle('text-brand-text-secondary', !isDashboard);
+    document.getElementById('month-filter').classList.toggle('invisible', viewName !== 'dashboard');
+    
+    navDashboardButton.classList.toggle('active', viewName === 'dashboard');
+    navDashboardButton.classList.toggle('text-brand-text-secondary', viewName !== 'dashboard');
 
-    navStatisticsButton.classList.toggle('active', !isDashboard);
-    navStatisticsButton.classList.toggle('text-brand-text-secondary', isDashboard);
+    navStatisticsButton.classList.toggle('active', viewName === 'statistics');
+    navStatisticsButton.classList.toggle('text-brand-text-secondary', viewName !== 'statistics');
+
+    navSimulatorButton.classList.toggle('active', viewName === 'simulator');
+    navSimulatorButton.classList.toggle('text-brand-text-secondary', viewName !== 'simulator');
     
-    if (!isDashboard) {
+    if (viewName === 'statistics') {
         const selectedYear = parseInt(yearFilter.value, 10);
-        if (lastRenderedAnnualYear !== selectedYear) {
-            fetchAndRenderAnnualSummary(selectedYear);
-        }
+        fetchAndRenderStatistics(selectedYear);
     }
 }
 
@@ -628,12 +946,12 @@ async function saveIncomeChanges() {
         const toUpdate = [];
         const currentIdsInDom = new Set(entriesFromDom.map(e => e.id).filter(Boolean));
         
-        const now = new Date();
+        const selectedYear = parseInt(yearFilter.value, 10);
+        const selectedMonth = parseInt(monthFilter.value, 10);
+
         for (const entry of entriesFromDom) {
-            const received_at = (entry.isMidMonth
-                ? new Date(now.getFullYear(), now.getMonth(), 15)
-                : new Date(now.getFullYear(), now.getMonth(), 28)
-            ).toISOString().split('T')[0];
+            const day = entry.isMidMonth ? 15 : 28;
+            const received_at = new Date(selectedYear, selectedMonth - 1, day).toISOString().split('T')[0];
 
             if (entry.isNew) {
                 const finalSourceId = sourceNameToIdMap.get(entry.sourceName.toLowerCase());
@@ -646,9 +964,6 @@ async function saveIncomeChanges() {
                      toUpdate.push({
                         id: entry.id,
                         amount: entry.amount,
-                        budget_id: originalEntry.budget_id,
-                        source_id: originalEntry.source_id,
-                        received_at: originalEntry.received_at
                      });
                 }
             }
@@ -657,18 +972,13 @@ async function saveIncomeChanges() {
         const originalIds = new Set(currentIncomeData.map(d => d.id));
         const deletedIds = [...originalIds].filter(id => !currentIdsInDom.has(id));
         
-        if (deletedIds.length > 0) {
-            const { error } = await db.from('income_entries').delete().in('id', deletedIds);
-            if (error) throw new Error(`Falha ao remover receitas: ${error.message}`);
-        }
-        if (toUpdate.length > 0) {
-            const { error } = await db.from('income_entries').upsert(toUpdate);
-            if (error) throw new Error(`Falha ao atualizar receitas: ${error.message}`);
-        }
-        if (toInsert.length > 0) {
-            const { error } = await db.from('income_entries').insert(toInsert);
-            if (error) throw new Error(`Falha ao adicionar novas receitas: ${error.message}`);
-        }
+        const promises = [];
+        if (deletedIds.length > 0) promises.push(db.from('income_entries').delete().in('id', deletedIds));
+        if (toUpdate.length > 0) promises.push(db.from('income_entries').upsert(toUpdate));
+        if (toInsert.length > 0) promises.push(db.from('income_entries').insert(toInsert));
+
+        const results = await Promise.all(promises);
+        results.forEach(res => { if(res.error) throw res.error });
         
         toggleIncomeEditMode(false);
         await fetchAndRenderDashboard(currentBudgetId);
@@ -765,8 +1075,8 @@ async function saveCategoryChanges() {
 
         toggleCategoriesEditMode(false);
         await fetchAndRenderDashboard(currentBudgetId);
-        // Refresh annual summary after saving, as it may have changed
-        await fetchAndRenderAnnualSummary(parseInt(yearFilter.value, 10));
+        lastRenderedStatsYear = null; // Force refresh
+        await fetchAndRenderStatistics(parseInt(yearFilter.value, 10));
 
     } catch (error) {
         console.error("Failed to save category changes:", error);
@@ -867,6 +1177,99 @@ function handleCategoryEditEvents(e) {
     }
 }
 
+// --- SIMULATOR LOGIC ---
+function handleCalculateFutureValue() {
+    const monthlyDeposit = parseFloat(document.getElementById('monthly-deposit').value) || 0;
+    const interestRate = parseFloat(document.getElementById('interest-rate').value) || 0;
+    const timePeriod = parseInt(document.getElementById('time-period').value, 10) || 0;
+
+    let futureValue = 0;
+    if (interestRate === 0) {
+        futureValue = monthlyDeposit * timePeriod;
+    } else {
+        const i = interestRate / 100;
+        futureValue = monthlyDeposit * ((((1 + i) ** timePeriod) - 1) / i);
+    }
+    
+    const resultElement = document.getElementById('future-value-result');
+    resultElement.querySelector('p:last-child').textContent = formatCurrency(futureValue);
+}
+
+function handleCalculateRequiredDeposit() {
+    const goalAmount = parseFloat(document.getElementById('goal-amount').value) || 0;
+    const interestRate = parseFloat(document.getElementById('goal-interest-rate').value) || 0;
+    const timePeriod = parseInt(document.getElementById('goal-time-period').value, 10) || 0;
+
+    let requiredDeposit = 0;
+    if (timePeriod > 0) {
+        if (interestRate === 0) {
+            requiredDeposit = goalAmount / timePeriod;
+        } else {
+            const i = interestRate / 100;
+            requiredDeposit = goalAmount * (i / (((1 + i) ** timePeriod) - 1));
+        }
+    }
+
+    const resultElement = document.getElementById('required-deposit-result');
+    resultElement.querySelector('p:last-child').textContent = formatCurrency(requiredDeposit);
+}
+
+// --- GOAL CRUD & MODAL LOGIC ---
+function openGoalModal() {
+    addGoalModal.classList.remove('hidden');
+}
+
+function closeGoalModal() {
+    addGoalModal.classList.add('hidden');
+    addGoalFormModal.reset();
+}
+
+async function handleAddGoal(e) {
+    e.preventDefault();
+    const description = document.getElementById('goal-description-modal').value.trim();
+    const goal_type = document.getElementById('goal-type-modal').value;
+    const target_amount = parseFloat(document.getElementById('goal-target-amount-modal').value);
+    const target_date = document.getElementById('goal-target-date-modal').value;
+
+    if (!description || !target_amount || !target_date) {
+        alert('Por favor, preencha todos os campos da meta.');
+        return;
+    }
+
+    try {
+        const { error } = await db.from('financial_goals').insert({
+            description,
+            goal_type,
+            target_amount,
+            target_date,
+            user_id: DEMO_USER_ID,
+        });
+        if (error) throw error;
+        closeGoalModal();
+        await fetchAndRenderStatistics(parseInt(yearFilter.value, 10));
+    } catch(error) {
+        console.error("Error adding goal:", error);
+        alert(`Não foi possível adicionar a meta: ${error.message}`);
+    }
+}
+
+async function handleDeleteGoal(e) {
+    const deleteButton = e.target.closest('.delete-goal-button');
+    if (!deleteButton) return;
+
+    const goalId = deleteButton.dataset.id;
+    if (!confirm('Tem certeza que deseja excluir esta meta?')) return;
+
+    try {
+        const { error } = await db.from('financial_goals').delete().eq('id', goalId);
+        if (error) throw error;
+        await fetchAndRenderStatistics(parseInt(yearFilter.value, 10));
+    } catch(error) {
+        console.error("Error deleting goal:", error);
+        alert(`Não foi possível excluir a meta: ${error.message}`);
+    }
+}
+
 
 // --- INITIALIZATION & FILTER LOGIC ---
 function populateFilters() {
@@ -928,21 +1331,19 @@ async function findOrCreateBudgetForPeriod(month, year) {
 async function handleFilterChange() {
     showLoader(true);
     try {
-        const selectedMonth = parseInt(monthFilter.value, 10);
         const selectedYear = parseInt(yearFilter.value, 10);
-        const budgetId = await findOrCreateBudgetForPeriod(selectedMonth, selectedYear);
-        await fetchAndRenderDashboard(budgetId);
-
-        if (lastRenderedAnnualYear !== selectedYear && activeView === 'statistics') {
-            await fetchAndRenderAnnualSummary(selectedYear);
-        } else if (lastRenderedAnnualYear !== selectedYear) {
-             // If the year changes, we should update the summary regardless, 
-             // so it's ready when the user switches views.
-            await fetchAndRenderAnnualSummary(selectedYear);
+        if (activeView === 'dashboard') {
+            const selectedMonth = parseInt(monthFilter.value, 10);
+            const budgetId = await findOrCreateBudgetForPeriod(selectedMonth, selectedYear);
+            await fetchAndRenderDashboard(budgetId);
         }
-
+        
+        lastRenderedStatsYear = null; // Force refresh stats if year changes
+        if (activeView === 'statistics') {
+            await fetchAndRenderStatistics(selectedYear);
+        }
     } catch (error) {
-        console.error("Failed to load dashboard for selected period:", error);
+        console.error("Failed to load data for selected period:", error);
         renderErrorState(error.message);
     } finally {
         showLoader(false);
@@ -971,6 +1372,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- VIEW SWITCHING LISTENERS ---
     navDashboardButton.addEventListener('click', () => switchView('dashboard'));
     navStatisticsButton.addEventListener('click', () => switchView('statistics'));
+    navSimulatorButton.addEventListener('click', () => switchView('simulator'));
     
     // Edit Income
     document.getElementById('income-section-wrapper').addEventListener('click', handleIncomeEditEvents);
@@ -1014,4 +1416,15 @@ document.addEventListener('DOMContentLoaded', () => {
         fetchAndRenderDashboard(currentBudgetId);
     });
     saveCategoriesButton.addEventListener('click', saveCategoryChanges);
+
+    // --- SIMULATOR EVENT LISTENERS ---
+    calculateFutureValueButton.addEventListener('click', handleCalculateFutureValue);
+    calculateRequiredDepositButton.addEventListener('click', handleCalculateRequiredDeposit);
+    
+    // --- STATISTICS & GOAL MODAL EVENT LISTENERS ---
+    addGoalButton.addEventListener('click', openGoalModal);
+    closeGoalModalButton.addEventListener('click', closeGoalModal);
+    cancelGoalModalButton.addEventListener('click', closeGoalModal);
+    addGoalFormModal.addEventListener('submit', handleAddGoal);
+    goalsListContainer.addEventListener('click', handleDeleteGoal);
 });

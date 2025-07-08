@@ -6,6 +6,7 @@
     <title>Dashboard Financeiro</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💰</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -227,12 +228,121 @@
       </div>
       
       <div id="statistics-view" class="view hidden mt-8 space-y-8">
-        <section id="annual-summary-section">
-           <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">🗓️ Resumo Anual</h2>
+        
+        <!-- Behavioral Insights & Score -->
+        <section id="annual-insights-section" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 bg-brand-card p-6 rounded-xl">
+             <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">💡 Insights do Ano</h2>
+             <div id="behavioral-stats-container" class="grid grid-cols-2 gap-4">
+                <!-- Behavioral stats cards will be inserted here -->
+             </div>
           </div>
-          <div id="annual-summary-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <!-- Annual summary cards will be inserted here -->
+           <div id="financial-score-container" class="bg-brand-card p-6 rounded-xl flex flex-col items-center justify-center">
+                <!-- Financial score will be inserted here -->
+           </div>
+        </section>
+
+        <!-- Monthly Evolution Chart -->
+        <section id="monthly-evolution-section">
+            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">🧠 Evolução Mensal</h2>
+            <div class="bg-brand-card p-6 rounded-xl">
+                <canvas id="monthly-evolution-chart" style="height: 300px;"></canvas>
+            </div>
+        </section>
+
+        <!-- Projections and Goals -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div>
+            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">🔮 Projeções e Destaques</h2>
+             <div class="space-y-6">
+                <div id="future-projection-container">
+                    <!-- Future projection card will be inserted here -->
+                </div>
+                <div id="highlight-months-container" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <!-- Highlight month cards will be inserted here -->
+                </div>
+             </div>
+          </div>
+          <div>
+              <div class="flex justify-between items-center mb-4">
+                  <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📈 Progresso de Metas</h2>
+                  <button id="add-goal-button" class="flex items-center gap-2 bg-brand-accent hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                      Nova Meta
+                  </button>
+              </div>
+              <div id="goals-container" class="bg-brand-card p-6 rounded-xl space-y-4 min-h-[200px]">
+                  <div id="goals-list" class="space-y-4">
+                      <!-- Goal items will be inserted here -->
+                  </div>
+              </div>
+          </div>
+        </section>
+        
+        <!-- Year over Year Comparison -->
+        <section id="yoy-comparison-section">
+            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">📅 Comparativo Ano a Ano</h2>
+            <div id="yoy-comparison-container" class="bg-brand-card p-6 rounded-xl">
+                <!-- Y-o-Y comparison table will be inserted here -->
+            </div>
+        </section>
+      </div>
+
+      <div id="simulator-view" class="view hidden mt-8 space-y-8">
+        <section>
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">🧮 Simulador de Investimentos</h2>
+          </div>
+          <div class="bg-brand-card p-6 rounded-xl space-y-6">
+            <h3 class="font-semibold text-brand-text-primary text-lg">Se eu guardar R$ X por mês, quanto terei?</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div>
+                <label for="monthly-deposit" class="block mb-2 text-sm font-medium text-brand-text-secondary">Depósito Mensal (R$)</label>
+                <input type="number" id="monthly-deposit" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="500.00" step="0.01">
+              </div>
+              <div>
+                <label for="interest-rate" class="block mb-2 text-sm font-medium text-brand-text-secondary">Taxa de Juros Mensal (%)</label>
+                <input type="number" id="interest-rate" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="1.0" step="0.01">
+              </div>
+              <div>
+                <label for="time-period" class="block mb-2 text-sm font-medium text-brand-text-secondary">Período (meses)</label>
+                <input type="number" id="time-period" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" value="12" step="1">
+              </div>
+            </div>
+            <div class="text-center">
+              <button id="calculate-future-value" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Calcular</button>
+            </div>
+            <div id="future-value-result" class="text-center bg-brand-background p-4 rounded-lg">
+              <p class="text-brand-text-secondary">Valor Futuro</p>
+              <p class="text-2xl font-bold text-brand-green">R$ 0,00</p>
+            </div>
+          </div>
+        </section>
+
+        <section>
+           <div class="bg-brand-card p-6 rounded-xl space-y-6">
+            <h3 class="font-semibold text-brand-text-primary text-lg">Qual valor preciso guardar por mês para atingir uma meta?</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+              <div>
+                <label for="goal-amount" class="block mb-2 text-sm font-medium text-brand-text-secondary">Minha Meta (R$)</label>
+                <input type="number" id="goal-amount" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="10000.00" step="0.01">
+              </div>
+              <div>
+                <label for="goal-interest-rate" class="block mb-2 text-sm font-medium text-brand-text-secondary">Taxa de Juros Mensal (%)</label>
+                <input type="number" id="goal-interest-rate" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="1.0" step="0.01">
+              </div>
+              <div>
+                <label for="goal-time-period" class="block mb-2 text-sm font-medium text-brand-text-secondary">Período (meses)</label>
+                <input type="number" id="goal-time-period" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="12" step="1">
+              </div>
+            </div>
+            <div class="text-center">
+              <button id="calculate-required-deposit" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Calcular</button>
+            </div>
+            <div id="required-deposit-result" class="text-center bg-brand-background p-4 rounded-lg">
+              <p class="text-brand-text-secondary">Depósito Mensal Necessário</p>
+              <p class="text-2xl font-bold text-brand-green">R$ 0,00</p>
+            </div>
           </div>
         </section>
       </div>
@@ -249,8 +359,51 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3"><path d="M3 3v18h18"/><path d="M7 16V7"/><path d="M12 16v-4"/><path d="M17 16v-9"/></svg>
           <span class="text-xs font-medium mt-1">Estatísticas</span>
         </button>
+        <button id="nav-simulator" class="nav-button text-brand-text-secondary flex flex-col items-center justify-center w-full h-full transition-colors duration-200">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calculator"><rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><line x1="16" x2="12" y1="14" y2="14" /><line x1="12" x2="12" y1="14" y2="18" /><line x1="8" x2="8" y1="10" y2="18" /><line x1="8" x2="12" y1="10" y2="10" /></svg>
+          <span class="text-xs font-medium mt-1">Simulador</span>
+        </button>
       </div>
     </nav>
+    
+    <!-- Add Goal Modal -->
+    <div id="add-goal-modal" class="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 hidden">
+        <div class="bg-brand-card p-8 rounded-xl shadow-lg w-full max-w-lg m-4">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-semibold text-brand-text-primary">Adicionar Nova Meta Financeira</h2>
+                <button id="close-goal-modal" class="text-brand-text-secondary hover:text-brand-text-primary">&times;</button>
+            </div>
+            <form id="add-goal-form-modal">
+                <div class="space-y-4">
+                    <div>
+                        <label for="goal-description-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Descrição da Meta</label>
+                        <input type="text" id="goal-description-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="Ex: Entrada do apartamento" required>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                           <label for="goal-type-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Tipo</label>
+                            <select id="goal-type-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5">
+                                <option value="save_total">Economizar</option>
+                                <option value="invest_total">Investir</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="goal-target-amount-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Valor Alvo (R$)</label>
+                            <input type="number" id="goal-target-amount-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="50000.00" step="0.01" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label for="goal-target-date-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Data Alvo</label>
+                        <input type="date" id="goal-target-date-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" required>
+                    </div>
+                </div>
+                <div class="mt-8 flex justify-end gap-4">
+                    <button type="button" id="cancel-goal-modal" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">Cancelar</button>
+                    <button type="submit" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Adicionar Meta</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
 
     <script type="module" src="./index.js"></script>
