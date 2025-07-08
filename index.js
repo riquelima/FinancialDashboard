@@ -1,4 +1,3 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 // --- SETUP ---
@@ -6,14 +5,14 @@ const SUPABASE_URL = 'https://snqlviehipbgswztrwhw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNucWx2aWVoaXBiZ3N3enRyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4OTU5MzIsImV4cCI6MjA2NzQ3MTkzMn0.n8aaWZfg81hD9Fr26pFQcR33brpdzMpUMkkna61V2nI';
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// A static, unique ID for demonstration data. This bypasses the need for user authentication.
-const DEMO_USER_ID = 'a7a3a8e4-1d3c-4d24-9a25-3e28a9b2b543'; 
+const DEMO_USER_ID = 'a7a3a8e4-1d3c-4d24-9a25-3e28a9b2b543';
 
 // --- DOM ELEMENTS ---
 const loader = document.getElementById('loader-container');
-const dashboardContent = document.getElementById('dashboard-content');
+const dashboardContentContainer = document.querySelector('.max-w-7xl.mx-auto');
 const monthFilter = document.getElementById('month-filter');
 const yearFilter = document.getElementById('year-filter');
+const actionsContainer = document.getElementById('dashboard-actions');
 
 // --- EDIT MODE ELEMENTS ---
 const editIncomeButton = document.getElementById('edit-income-button');
@@ -26,16 +25,24 @@ const saveCategoriesButton = document.getElementById('save-categories-button');
 const cancelCategoriesButton = document.getElementById('cancel-categories-button');
 const categorySaveCancelButtons = document.getElementById('category-save-cancel-buttons');
 
+// --- VIEW SWITCHING ELEMENTS ---
+const dashboardView = document.getElementById('dashboard-view');
+const statisticsView = document.getElementById('statistics-view');
+const navDashboardButton = document.getElementById('nav-dashboard');
+const navStatisticsButton = document.getElementById('nav-statistics');
 
-// --- EDIT STATE ---
+
+// --- STATE & GLOBAL DATA ---
 let isIncomeEditing = false;
 let isCategoryEditing = false;
 let currentIncomeData = [];
 let allIncomeSources = [];
 let allExpenseCategories = [];
 let currentSpendingByCategory = [];
-let currentBudgetId = null; // Store the current budget ID
+let currentBudgetId = null;
 let currentTotalIncome = 0;
+let lastRenderedAnnualYear = null;
+let activeView = 'dashboard';
 
 
 // --- UTILITY FUNCTIONS ---
@@ -46,12 +53,12 @@ const formatCurrency = (value) => {
 
 const showLoader = (show) => {
   loader.classList.toggle('hidden', !show);
-  dashboardContent.classList.toggle('hidden', show);
+  dashboardContentContainer.classList.toggle('hidden', show);
 };
 
 // --- RENDER FUNCTIONS ---
 function renderErrorState(message) {
-   dashboardContent.innerHTML = `<div class="bg-red-900 border border-red-700 text-red-200 p-6 rounded-xl text-center max-w-3xl mx-auto">
+   dashboardContentContainer.innerHTML = `<div class="bg-red-900 border border-red-700 text-red-200 p-6 rounded-xl text-center max-w-3xl mx-auto mt-8">
       <h2 class="font-bold text-lg mb-2">Ocorreu um Erro Inesperado</h2>
       <p class="font-mono text-sm bg-slate-900 p-2 rounded">${message}</p>
       <p class="mt-4 text-red-300 text-sm">Se o erro persistir, pode ser necessário ajustar a base de dados. Tente atualizar a página ou selecionar outro período.</p>
@@ -130,7 +137,7 @@ function renderCategoryCards(spendingByCategory) {
     const categoryEmojis = {
       'Gastos Essenciais': '💡',
       'Gastos Não Essenciais': '🍕',
-      'Investimentos': '📈',
+      'Investimentos': '🐖',
       'Torrar': '😎',
       'default': '💸'
     };
@@ -318,17 +325,143 @@ function renderSummary(totalPlanned, totalSpent, variation) {
 }
 
 
+async function handleCopyFromPrevious(sourceBudgetId) {
+    showLoader(true);
+    try {
+        const { error } = await db.rpc('copy_budget_data', {
+            p_source_budget_id: sourceBudgetId,
+            p_target_budget_id: currentBudgetId
+        });
+        if (error) throw error;
+        
+        await fetchAndRenderDashboard(currentBudgetId);
+        // After copying, the year might be the same, but we need to refresh the annual summary
+        const selectedYear = parseInt(yearFilter.value, 10);
+        await fetchAndRenderAnnualSummary(selectedYear);
+
+    } catch(error) {
+        console.error("Failed to copy from previous month:", error);
+        renderErrorState(`Erro ao copiar dados: ${error.message}`);
+    } finally {
+        showLoader(false);
+    }
+}
+
+
+async function renderDashboardActions(isBudgetEmpty) {
+    actionsContainer.innerHTML = ''; 
+
+    if (!isBudgetEmpty) return;
+
+    const selectedMonth = parseInt(monthFilter.value, 10);
+    const selectedYear = parseInt(yearFilter.value, 10);
+    
+    const previousMonthDate = new Date(selectedYear, selectedMonth - 1, 1);
+    previousMonthDate.setMonth(previousMonthDate.getMonth() - 1);
+    const prevMonth = previousMonthDate.getMonth() + 1;
+    const prevYear = previousMonthDate.getFullYear();
+
+    const { data: prevBudget, error } = await db.from('budgets').select('id', { count: 'exact' })
+        .eq('user_id', DEMO_USER_ID)
+        .eq('month', prevMonth)
+        .eq('year', prevYear)
+        .limit(1)
+        .single();
+    
+    if (prevBudget && !error) {
+        actionsContainer.innerHTML = `
+            <div class="flex justify-center">
+                <button id="copy-previous-month-button" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
+                    Copiar dados do mês anterior
+                </button>
+            </div>
+        `;
+        document.getElementById('copy-previous-month-button').addEventListener('click', () => handleCopyFromPrevious(prevBudget.id));
+    }
+}
+
+function renderAnnualSummary(annualData) {
+    const container = document.getElementById('annual-summary-container');
+    
+    const createCardHTML = (title, emoji, amount) => `
+        <div class="bg-brand-card p-6 rounded-xl">
+           <h3 class="font-semibold text-brand-text-secondary flex items-center gap-2">${emoji} ${title}</h3>
+           <p class="text-3xl font-bold mt-2 text-brand-text-primary">${formatCurrency(amount)}</p>
+        </div>
+    `;
+
+    container.innerHTML = createCardHTML('Ganho Anual', '🏆', annualData.totalAnnualIncome)
+                        + createCardHTML('Investimento Anual', '🐖', annualData.totalAnnualInvestment)
+                        + createCardHTML('Gastos Essenciais / Ano', '💡', annualData.totalAnnualEssentials);
+}
+
+async function fetchAndRenderAnnualSummary(year) {
+    const container = document.getElementById('annual-summary-container');
+    container.innerHTML = `
+        <div class="bg-brand-card p-6 rounded-xl animate-pulse h-28 col-span-1"></div>
+        <div class="bg-brand-card p-6 rounded-xl animate-pulse h-28 col-span-1"></div>
+        <div class="bg-brand-card p-6 rounded-xl animate-pulse h-28 col-span-1"></div>
+    `;
+
+    try {
+        if (allExpenseCategories.length === 0) {
+            const { data: expenseCategories, error: expenseCatError } = await db.from('expense_categories').select('*').eq('user_id', DEMO_USER_ID);
+            if (expenseCatError) throw new Error(`Erro ao buscar categorias de despesa: ${expenseCatError.message}`);
+            allExpenseCategories = expenseCategories;
+        }
+
+        const investmentCategory = allExpenseCategories.find(c => c.name === 'Investimentos');
+        const essentialCategory = allExpenseCategories.find(c => c.name === 'Gastos Essenciais');
+        
+        const { data: budgets, error: budgetsError } = await db.from('budgets').select('id').eq('user_id', DEMO_USER_ID).eq('year', year);
+        if (budgetsError) throw budgetsError;
+
+        if (!budgets || budgets.length === 0) {
+            renderAnnualSummary({ totalAnnualIncome: 0, totalAnnualInvestment: 0, totalAnnualEssentials: 0 });
+            return;
+        }
+
+        const budgetIds = budgets.map(b => b.id);
+        
+        const [
+            { data: allIncome, error: incomeError },
+            { data: allTransactions, error: transactionsError }
+        ] = await Promise.all([
+            db.from('income_entries').select('amount').in('budget_id', budgetIds),
+            db.from('transactions').select('amount, category_id').in('budget_id', budgetIds)
+        ]);
+
+        if (incomeError) throw incomeError;
+        if (transactionsError) throw transactionsError;
+
+        const totalAnnualIncome = allIncome.reduce((acc, entry) => acc + Number(entry.amount), 0);
+        
+        const totalAnnualInvestment = allTransactions
+            .filter(tx => tx.category_id === investmentCategory?.id)
+            .reduce((acc, tx) => acc + Number(tx.amount), 0);
+        
+        const totalAnnualEssentials = allTransactions
+            .filter(tx => tx.category_id === essentialCategory?.id)
+            .reduce((acc, tx) => acc + Number(tx.amount), 0);
+        
+        renderAnnualSummary({ totalAnnualIncome, totalAnnualInvestment, totalAnnualEssentials });
+        lastRenderedAnnualYear = year;
+    } catch (error) {
+        console.error("Failed to fetch annual summary:", error);
+        container.innerHTML = `<div class="col-span-full text-red-400 bg-brand-card p-4 rounded-xl">Falha ao carregar o resumo anual: ${error.message}</div>`;
+    }
+}
+
+
 // --- DATA LOGIC ---
 
 async function fetchAndRenderDashboard(budgetId) {
-  console.log("Fetching and rendering dashboard for budget:", budgetId);
   currentBudgetId = budgetId;
   try {
     if (!budgetId) {
       throw new Error("ID do Orçamento não fornecido. Não é possível renderizar o dashboard.");
     }
     
-    // Fetch all required data in simpler, separate queries to improve reliability
     const { data: incomeEntriesData, error: incomeError } = await db.from('income_entries').select('*').eq('budget_id', budgetId);
     if (incomeError) throw new Error(`Erro ao buscar receitas: ${incomeError.message}`);
     
@@ -348,7 +481,6 @@ async function fetchAndRenderDashboard(budgetId) {
     const { data: transactionsData, error: transactionsError } = await db.from('transactions').select('*').eq('budget_id', budgetId);
     if (transactionsError) throw new Error(`Erro ao buscar transações: ${transactionsError.message}`);
 
-    // Join data on the client side
     const fullIncomeData = incomeEntriesData.map(entry => ({
         ...entry,
         income_sources: incomeSourceMap[entry.source_id]
@@ -386,12 +518,38 @@ async function fetchAndRenderDashboard(budgetId) {
     renderVisualizations(spendingByCategory, totalPlanned);
     renderSummary(totalPlanned, totalSpent, variation);
     
-    console.log("Dashboard rendered successfully.");
+    const isBudgetEmpty = totalIncome === 0 && totalPlanned === 0;
+    await renderDashboardActions(isBudgetEmpty);
 
   } catch (error) {
     throw error;
   }
 }
+
+// --- VIEW SWITCHING LOGIC ---
+function switchView(viewName) {
+    if (viewName === activeView) return;
+
+    activeView = viewName;
+    const isDashboard = viewName === 'dashboard';
+
+    dashboardView.classList.toggle('hidden', !isDashboard);
+    statisticsView.classList.toggle('hidden', isDashboard);
+    
+    navDashboardButton.classList.toggle('active', isDashboard);
+    navDashboardButton.classList.toggle('text-brand-text-secondary', !isDashboard);
+
+    navStatisticsButton.classList.toggle('active', !isDashboard);
+    navStatisticsButton.classList.toggle('text-brand-text-secondary', isDashboard);
+    
+    if (!isDashboard) {
+        const selectedYear = parseInt(yearFilter.value, 10);
+        if (lastRenderedAnnualYear !== selectedYear) {
+            fetchAndRenderAnnualSummary(selectedYear);
+        }
+    }
+}
+
 
 // --- EDIT MODE LOGIC ---
 
@@ -399,14 +557,14 @@ function toggleIncomeEditMode(editing) {
     isIncomeEditing = editing;
     editIncomeButton.classList.toggle('hidden', editing);
     incomeSaveCancelButtons.classList.toggle('hidden', !editing);
-    renderIncome(currentIncomeData); // Re-render the income section
+    renderIncome(currentIncomeData); 
 }
 
 function toggleCategoriesEditMode(editing) {
     isCategoryEditing = editing;
     editCategoriesButton.classList.toggle('hidden', editing);
     categorySaveCancelButtons.classList.toggle('hidden', !editing);
-    renderCategoryCards(currentSpendingByCategory); // Re-render the category section
+    renderCategoryCards(currentSpendingByCategory);
 }
 
 async function saveIncomeChanges() {
@@ -414,10 +572,8 @@ async function saveIncomeChanges() {
     try {
         if (!currentBudgetId) throw new Error("ID do Orçamento não foi encontrado. Por favor, recarregue a página.");
 
-        // Create a map for quick lookups of existing sources and add to it dynamically
         const sourceNameToIdMap = new Map(allIncomeSources.map(s => [s.name.toLowerCase(), s.id]));
 
-        // --- Step 1: Collect all changes from the DOM ---
         const entriesFromDom = [];
         document.querySelectorAll('.income-row').forEach(row => {
             const id = row.dataset.id ? parseInt(row.dataset.id, 10) : null;
@@ -439,7 +595,6 @@ async function saveIncomeChanges() {
                 }
             }
             
-            // Allow saving if it's an existing entry OR a new entry with a name.
             if (sourceName || sourceId) {
                  entriesFromDom.push({
                     id: id,
@@ -452,7 +607,6 @@ async function saveIncomeChanges() {
             }
         });
 
-        // --- Step 2: Create any new income sources needed ---
         const sourcesToCreate = [...new Set(
             entriesFromDom
                 .filter(e => e.isNew && e.sourceName && !sourceNameToIdMap.has(e.sourceName.toLowerCase()))
@@ -470,10 +624,9 @@ async function saveIncomeChanges() {
             });
         }
         
-        // --- Step 3: Prepare batch operations (insert, update, delete) ---
         const toInsert = [];
         const toUpdate = [];
-        const currentIdsInDom = new Set();
+        const currentIdsInDom = new Set(entriesFromDom.map(e => e.id).filter(Boolean));
         
         const now = new Date();
         for (const entry of entriesFromDom) {
@@ -488,7 +641,6 @@ async function saveIncomeChanges() {
                     toInsert.push({ budget_id: currentBudgetId, source_id: finalSourceId, amount: entry.amount, received_at });
                 }
             } else {
-                currentIdsInDom.add(entry.id);
                 const originalEntry = currentIncomeData.find(d => d.id === entry.id);
                 if (originalEntry && Math.abs(originalEntry.amount - entry.amount) > 0.001) {
                      toUpdate.push({
@@ -502,9 +654,9 @@ async function saveIncomeChanges() {
             }
         }
         
+        const originalIds = new Set(currentIncomeData.map(d => d.id));
         const deletedIds = [...originalIds].filter(id => !currentIdsInDom.has(id));
         
-        // --- Step 4: Execute DB operations ---
         if (deletedIds.length > 0) {
             const { error } = await db.from('income_entries').delete().in('id', deletedIds);
             if (error) throw new Error(`Falha ao remover receitas: ${error.message}`);
@@ -534,12 +686,10 @@ async function saveCategoryChanges() {
     try {
         if (!currentBudgetId) throw new Error("ID do Orçamento não foi encontrado.");
 
-        // Fetch the latest category list to ensure we have all IDs.
         const { data: existingCategories, error: fetchError } = await db.from('expense_categories').select('id, name').eq('user_id', DEMO_USER_ID);
         if (fetchError) throw new Error(`Erro ao buscar categorias existentes: ${fetchError.message}`);
         const categoryNameToIdMap = new Map(existingCategories.map(c => [c.name.toLowerCase(), c.id]));
 
-        // --- 1. Collect all data and intentions from the DOM ---
         const itemsFromDom = [];
         document.querySelectorAll('.category-card').forEach(card => {
             const id = card.dataset.id ? parseInt(card.dataset.id, 10) : null;
@@ -557,7 +707,6 @@ async function saveCategoryChanges() {
             itemsFromDom.push({ id, isNew, plannedAmount, realAmount, categoryName, categoryId });
         });
 
-        // --- 2. Create new categories if necessary (must happen before main save) ---
         const newCategoryNames = [...new Set(
             itemsFromDom
                 .filter(item => item.isNew && item.categoryName && !categoryNameToIdMap.has(item.categoryName.toLowerCase()))
@@ -573,7 +722,6 @@ async function saveCategoryChanges() {
         
         const promises = [];
 
-        // --- 3. Handle Deletions ---
         const categoryIdsInDom = new Set(itemsFromDom.map(item => item.categoryId).filter(Boolean));
         const categoriesToDelete = currentSpendingByCategory
             .filter(cat => !categoryIdsInDom.has(cat.category_id))
@@ -585,14 +733,13 @@ async function saveCategoryChanges() {
             }
         }
 
-        // --- 4. Handle Updates/Creations via a single atomic RPC call ---
         const budgetItemsPayload = itemsFromDom
             .map(item => {
                 const categoryId = item.isNew
                     ? categoryNameToIdMap.get(item.categoryName.toLowerCase())
                     : item.categoryId;
                 
-                if (!categoryId) return null; // Skip if no valid category ID
+                if (!categoryId) return null;
 
                 return {
                     category_id: categoryId,
@@ -600,7 +747,7 @@ async function saveCategoryChanges() {
                     real_amount: item.realAmount
                 };
             })
-            .filter(Boolean); // Remove nulls
+            .filter(Boolean);
 
         if (budgetItemsPayload.length > 0) {
             promises.push(db.rpc('save_all_budget_changes', {
@@ -609,18 +756,17 @@ async function saveCategoryChanges() {
             }));
         }
 
-        // --- 5. Execute all database operations and check for errors ---
         const results = await Promise.all(promises);
         for (const res of results) {
             if (res.error) {
-                // Throw the first error encountered
                 throw new Error(`Database operation failed: ${res.error.message}`);
             }
         }
 
-        // --- 6. Final success step: toggle mode and refresh UI ---
         toggleCategoriesEditMode(false);
         await fetchAndRenderDashboard(currentBudgetId);
+        // Refresh annual summary after saving, as it may have changed
+        await fetchAndRenderAnnualSummary(parseInt(yearFilter.value, 10));
 
     } catch (error) {
         console.error("Failed to save category changes:", error);
@@ -681,7 +827,7 @@ function handleCategoryEditEvents(e) {
     if (addBtn) {
         const newCard = document.createElement('div');
         newCard.className = 'bg-brand-card p-6 rounded-xl category-card new-category-card';
-        newCard.dataset.categoryId = ''; // No category ID yet
+        newCard.dataset.categoryId = ''; 
         newCard.innerHTML = `
             <div class="flex justify-between items-start mb-4">
                 <div class="flex items-center gap-2 flex-grow">
@@ -715,7 +861,7 @@ function handleCategoryEditEvents(e) {
         if(addButtonContainer) {
             container.insertBefore(newCard, addButtonContainer);
         } else {
-            container.appendChild(newCard); // Fallback
+            container.appendChild(newCard);
         }
         newCard.querySelector('.category-name-input').focus();
     }
@@ -737,8 +883,6 @@ function populateFilters() {
 }
 
 async function createBlankBudgetForPeriod(month, year) {
-  console.log(`Creating new blank budget for ${month}/${year}`);
-  // 1. Create budget entry
   const { data: budget, error: budgetError } = await db.from('budgets').insert({
       month,
       year,
@@ -746,11 +890,9 @@ async function createBlankBudgetForPeriod(month, year) {
   }).select().single();
   if (budgetError) throw new Error(`Erro ao criar novo orçamento: ${budgetError.message}`);
 
-  // 2. Get user's expense categories
   const { data: categories, error: catError } = await db.from('expense_categories').select('id').eq('user_id', DEMO_USER_ID);
   if (catError) throw new Error(`Erro ao buscar categorias para novo orçamento: ${catError.message}`);
 
-  // 3. Create budget items with 0 planned amount
   if (categories && categories.length > 0) {
     const newBudgetItems = categories.map(cat => ({
       budget_id: budget.id,
@@ -761,7 +903,6 @@ async function createBlankBudgetForPeriod(month, year) {
     if (itemsError) throw itemsError;
   }
   
-  console.log(`Blank budget created successfully with id: ${budget.id}`);
   return budget.id;
 }
 
@@ -770,25 +911,36 @@ async function findOrCreateBudgetForPeriod(month, year) {
       .eq('user_id', DEMO_USER_ID)
       .eq('month', month)
       .eq('year', year)
-      .limit(1);
+      .limit(1)
+      .single();
 
-  if (error) throw new Error(`Falha ao verificar orçamento existente: ${error.message}`);
-  
-  if (data && data.length > 0) {
-      console.log(`Found existing budget for ${month}/${year} with id: ${data[0].id}`);
-      return data[0].id;
-  } else {
-      return await createBlankBudgetForPeriod(month, year);
+  if (error && error.code !== 'PGRST116') { 
+      throw new Error(`Falha ao verificar orçamento existente: ${error.message}`);
   }
+  
+  if (data) {
+      return data.id;
+  }
+  
+  return await createBlankBudgetForPeriod(month, year);
 }
 
 async function handleFilterChange() {
     showLoader(true);
     try {
-        const selectedMonth = monthFilter.value;
-        const selectedYear = yearFilter.value;
+        const selectedMonth = parseInt(monthFilter.value, 10);
+        const selectedYear = parseInt(yearFilter.value, 10);
         const budgetId = await findOrCreateBudgetForPeriod(selectedMonth, selectedYear);
         await fetchAndRenderDashboard(budgetId);
+
+        if (lastRenderedAnnualYear !== selectedYear && activeView === 'statistics') {
+            await fetchAndRenderAnnualSummary(selectedYear);
+        } else if (lastRenderedAnnualYear !== selectedYear) {
+             // If the year changes, we should update the summary regardless, 
+             // so it's ready when the user switches views.
+            await fetchAndRenderAnnualSummary(selectedYear);
+        }
+
     } catch (error) {
         console.error("Failed to load dashboard for selected period:", error);
         renderErrorState(error.message);
@@ -804,6 +956,7 @@ async function initializeDashboard() {
     } catch (error) {
         console.error("Dashboard initialization failed:", error);
         renderErrorState(error.message);
+    } finally {
         showLoader(false);
     }
 }
@@ -811,50 +964,46 @@ async function initializeDashboard() {
 document.addEventListener('DOMContentLoaded', () => {
     initializeDashboard();
 
+    // --- MAIN EVENT LISTENERS ---
     monthFilter.addEventListener('change', handleFilterChange);
     yearFilter.addEventListener('change', handleFilterChange);
+
+    // --- VIEW SWITCHING LISTENERS ---
+    navDashboardButton.addEventListener('click', () => switchView('dashboard'));
+    navStatisticsButton.addEventListener('click', () => switchView('statistics'));
     
-    // Add listeners for edit functionality
+    // Edit Income
     document.getElementById('income-section-wrapper').addEventListener('click', handleIncomeEditEvents);
     editIncomeButton.addEventListener('click', () => toggleIncomeEditMode(true));
     cancelIncomeButton.addEventListener('click', () => {
         toggleIncomeEditMode(false);
-        fetchAndRenderDashboard(currentBudgetId); // Discard changes by re-rendering
+        fetchAndRenderDashboard(currentBudgetId);
     });
     saveIncomeButton.addEventListener('click', saveIncomeChanges);
     
-    // Combined listener for all category card interactions
+    // Edit Categories
     const categorySection = document.getElementById('category-section-wrapper');
     categorySection.addEventListener('click', (e) => {
-        if (isCategoryEditing) {
-            handleCategoryEditEvents(e);
-        }
+        if (isCategoryEditing) handleCategoryEditEvents(e);
     });
     
-    // Listener for live input changes in category edit mode
     categorySection.addEventListener('input', (e) => {
         if (!isCategoryEditing) return;
-
         const card = e.target.closest('.category-card');
         if (!card) return;
-
         if (e.target.matches('.category-planned-input')) {
-            // User edits a PLANNED amount: update its percentage based on total income
             const plannedValue = parseFloat(e.target.value) || 0;
             const percInput = card.querySelector('.category-percentage-input');
             if (percInput && currentTotalIncome > 0) {
-                const newPercentage = (plannedValue / currentTotalIncome) * 100;
-                percInput.value = newPercentage.toFixed(0);
+                percInput.value = ((plannedValue / currentTotalIncome) * 100).toFixed(0);
             } else if (percInput) {
                 percInput.value = '0';
             }
         } else if (e.target.matches('.category-percentage-input')) {
-            // User edits a PERCENTAGE: update its PLANNED amount based on total income
             const percentageValue = parseFloat(e.target.value) || 0;
             const plannedInput = card.querySelector('.category-planned-input');
             if (plannedInput) {
-                const newPlannedValue = currentTotalIncome * (percentageValue / 100);
-                plannedInput.value = newPlannedValue.toFixed(2);
+                plannedInput.value = (currentTotalIncome * (percentageValue / 100)).toFixed(2);
             }
         }
     });
@@ -862,7 +1011,7 @@ document.addEventListener('DOMContentLoaded', () => {
     editCategoriesButton.addEventListener('click', () => toggleCategoriesEditMode(true));
     cancelCategoriesButton.addEventListener('click', () => {
         toggleCategoriesEditMode(false);
-        fetchAndRenderDashboard(currentBudgetId); // Discard changes by re-rendering
+        fetchAndRenderDashboard(currentBudgetId);
     });
     saveCategoriesButton.addEventListener('click', saveCategoryChanges);
 });
