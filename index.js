@@ -1,3 +1,4 @@
+
 import { createClient } from '@supabase/supabase-js';
 
 // --- SETUP ---
@@ -5,9 +6,18 @@ const SUPABASE_URL = 'https://snqlviehipbgswztrwhw.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNucWx2aWVoaXBiZ3N3enRyd2h3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE4OTU5MzIsImV4cCI6MjA2NzQ3MTkzMn0.n8aaWZfg81hD9Fr26pFQcR33brpdzMpUMkkna61V2nI';
 const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const DEMO_USER_ID = 'a7a3a8e4-1d3c-4d24-9a25-3e28a9b2b543';
-
 // --- DOM ELEMENTS ---
+// Login Elements
+const loginView = document.getElementById('login-view');
+const appContainer = document.getElementById('app-container');
+const loginForm = document.getElementById('login-form');
+const usernameInput = document.getElementById('username');
+const passwordInput = document.getElementById('password');
+const loginError = document.getElementById('login-error');
+const logoutButton = document.getElementById('logout-button');
+
+
+// App Elements
 const loader = document.getElementById('loader-container');
 const dashboardContentContainer = document.querySelector('.max-w-7xl.mx-auto');
 const monthFilter = document.getElementById('month-filter');
@@ -37,7 +47,7 @@ const navSimulatorButton = document.getElementById('nav-simulator');
 const calculateFutureValueButton = document.getElementById('calculate-future-value');
 const calculateRequiredDepositButton = document.getElementById('calculate-required-deposit');
 
-// --- STATISTICS ELEMENTS ---
+// --- STATISTICS & GOAL MODAL ELEMENTS ---
 const goalsListContainer = document.getElementById('goals-list');
 const monthlyEvolutionChartCanvas = document.getElementById('monthly-evolution-chart');
 const addGoalButton = document.getElementById('add-goal-button');
@@ -48,6 +58,7 @@ const cancelGoalModalButton = document.getElementById('cancel-goal-modal');
 
 
 // --- STATE & GLOBAL DATA ---
+let loggedInUser = null;
 let isIncomeEditing = false;
 let isCategoryEditing = false;
 let currentIncomeData = [];
@@ -69,8 +80,11 @@ const formatCurrency = (value) => {
 };
 
 const showLoader = (show) => {
+  if (!loader || !dashboardContentContainer) return;
   loader.classList.toggle('hidden', !show);
-  dashboardContentContainer.classList.toggle('hidden', show);
+  if (appContainer && !appContainer.classList.contains('hidden')) {
+    dashboardContentContainer.classList.toggle('hidden', show);
+  }
 };
 
 // --- RENDER FUNCTIONS ---
@@ -84,8 +98,9 @@ function renderErrorState(message) {
 }
 
 function renderIncome(entries) {
-  const midMonthEntries = entries.filter(e => new Date(e.received_at + 'T00:00:00').getDate() <= 15);
-  const endMonthEntries = entries.filter(e => new Date(e.received_at + 'T00:00:00').getDate() > 15);
+  const incomeCardMid = document.getElementById('income-card-mid');
+  const incomeCardEnd = document.getElementById('income-card-end');
+  const gridContainer = incomeCardMid.parentElement;
 
   const createIncomeCardHTML = (title, entries, cardType) => {
     const total = entries.reduce((acc, e) => acc + Number(e.amount), 0);
@@ -124,11 +139,18 @@ function renderIncome(entries) {
         </button>
       </div>
     ` : '';
+    
+    let dayLabel = '';
+    if (title === 'Meio do Mês') {
+        dayLabel = `<span class="text-xs text-brand-green font-semibold">15º dia</span>`;
+    } else if (title === 'Fim do Mês') {
+        dayLabel = `<span class="text-xs text-brand-green font-semibold">30º dia</span>`;
+    }
 
     return `
       <div class="flex justify-between items-baseline mb-4">
         <h3 class="font-semibold text-brand-text-primary">${title}</h3>
-        <span class="text-xs text-brand-green font-semibold">${title === 'Meio do Mês' ? '15º dia' : '30º dia'}</span>
+        ${dayLabel}
       </div>
       <div class="space-y-3 flex-grow income-list-container">${listItems}</div>
       ${addIncomeButtonHTML}
@@ -139,8 +161,25 @@ function renderIncome(entries) {
     `;
   };
   
-  document.getElementById('income-card-mid').innerHTML = createIncomeCardHTML('Meio do Mês', midMonthEntries, 'mid');
-  document.getElementById('income-card-end').innerHTML = createIncomeCardHTML('Fim do Mês', endMonthEntries, 'end');
+  incomeCardEnd.classList.remove('hidden');
+  gridContainer.classList.remove('lg:grid-cols-3');
+  gridContainer.classList.add('lg:grid-cols-4', 'md:grid-cols-2');
+
+  if (loggedInUser && loggedInUser.username === 'gilson') {
+    incomeCardEnd.classList.add('hidden');
+    gridContainer.classList.remove('lg:grid-cols-4', 'md:grid-cols-2');
+    gridContainer.classList.add('lg:grid-cols-3');
+
+    const allEntries = entries;
+    incomeCardMid.innerHTML = createIncomeCardHTML('Mês', allEntries, 'full');
+
+  } else {
+    const midMonthEntries = entries.filter(e => new Date(e.received_at + 'T00:00:00').getDate() <= 15);
+    const endMonthEntries = entries.filter(e => new Date(e.received_at + 'T00:00:00').getDate() > 15);
+    
+    incomeCardMid.innerHTML = createIncomeCardHTML('Meio do Mês', midMonthEntries, 'mid');
+    incomeCardEnd.innerHTML = createIncomeCardHTML('Fim do Mês', endMonthEntries, 'end');
+  }
 }
 
 function renderMainCards(totalIncome, remainingBalance) {
@@ -378,8 +417,8 @@ async function renderDashboardActions(isBudgetEmpty) {
     const prevMonth = previousMonthDate.getMonth() + 1;
     const prevYear = previousMonthDate.getFullYear();
 
-    const { data: prevBudget, error } = await db.from('budgets').select('id', { count: 'exact' })
-        .eq('user_id', DEMO_USER_ID)
+    const { data: prevBudget, error } = await db.from('financial_budgets').select('id', { count: 'exact' })
+        .eq('user_id', loggedInUser.id)
         .eq('month', prevMonth)
         .eq('year', prevYear)
         .limit(1)
@@ -407,31 +446,24 @@ async function fetchAndRenderDashboard(budgetId) {
       throw new Error("ID do Orçamento não fornecido. Não é possível renderizar o dashboard.");
     }
     
-    const { data: incomeEntriesData, error: incomeError } = await db.from('income_entries').select('*').eq('budget_id', budgetId);
+    const { data: incomeEntriesData, error: incomeError } = await db.from('financial_income_entries').select('*, income_sources:financial_income_sources(name)').eq('budget_id', budgetId);
     if (incomeError) throw new Error(`Erro ao buscar receitas: ${incomeError.message}`);
     
-    const { data: incomeSources, error: sourcesError } = await db.from('income_sources').select('*').eq('user_id', DEMO_USER_ID);
+    const { data: incomeSources, error: sourcesError } = await db.from('financial_income_sources').select('*').eq('user_id', loggedInUser.id);
     if(sourcesError) throw new Error(`Erro ao buscar fontes de receita: ${sourcesError.message}`);
     allIncomeSources = incomeSources;
 
-    const { data: expenseCategories, error: expenseCatError } = await db.from('expense_categories').select('*').eq('user_id', DEMO_USER_ID);
+    const { data: expenseCategories, error: expenseCatError } = await db.from('financial_expense_categories').select('*').eq('user_id', loggedInUser.id);
     if (expenseCatError) throw new Error(`Erro ao buscar categorias de despesa: ${expenseCatError.message}`);
     allExpenseCategories = expenseCategories;
     
-    const incomeSourceMap = Object.fromEntries(incomeSources.map(s => [s.id, s]));
-    
-    const { data: budgetItemsData, error: budgetItemsError } = await db.from('budget_items').select('*, expense_categories(*)').eq('budget_id', budgetId);
+    const { data: budgetItemsData, error: budgetItemsError } = await db.from('financial_budget_items').select('*, expense_categories:financial_expense_categories(*)').eq('budget_id', budgetId);
     if (budgetItemsError) throw new Error(`Erro ao buscar itens do orçamento: ${budgetItemsError.message}`);
     
-    const { data: transactionsData, error: transactionsError } = await db.from('transactions').select('*').eq('budget_id', budgetId);
+    const { data: transactionsData, error: transactionsError } = await db.from('financial_transactions').select('*').eq('budget_id', budgetId);
     if (transactionsError) throw new Error(`Erro ao buscar transações: ${transactionsError.message}`);
 
-    const fullIncomeData = incomeEntriesData.map(entry => ({
-        ...entry,
-        income_sources: incomeSourceMap[entry.source_id]
-    }));
-    
-    const totalIncome = fullIncomeData.reduce((acc, entry) => acc + Number(entry.amount), 0);
+    const totalIncome = incomeEntriesData.reduce((acc, entry) => acc + Number(entry.amount), 0);
     currentTotalIncome = totalIncome;
     const totalSpent = transactionsData.reduce((acc, tx) => acc + Number(tx.amount), 0);
     const totalPlanned = budgetItemsData.reduce((acc, item) => acc + Number(item.planned_amount), 0);
@@ -454,10 +486,10 @@ async function fetchAndRenderDashboard(budgetId) {
         };
     });
     
-    currentIncomeData = JSON.parse(JSON.stringify(fullIncomeData));
+    currentIncomeData = JSON.parse(JSON.stringify(incomeEntriesData));
     currentSpendingByCategory = JSON.parse(JSON.stringify(spendingByCategory));
 
-    renderIncome(fullIncomeData);
+    renderIncome(incomeEntriesData);
     renderMainCards(totalIncome, remainingBalance);
     renderCategoryCards(spendingByCategory);
     renderVisualizations(spendingByCategory, totalPlanned);
@@ -765,7 +797,7 @@ async function fetchAndRenderStatistics(year) {
     
     try {
         const fetchYearData = async (targetYear) => {
-            const { data: budgets, error: budgetsError } = await db.from('budgets').select('id, month, year').eq('user_id', DEMO_USER_ID).eq('year', targetYear);
+            const { data: budgets, error: budgetsError } = await db.from('financial_budgets').select('id, month, year').eq('user_id', loggedInUser.id).eq('year', targetYear);
             if (budgetsError) throw budgetsError;
             if (budgets.length === 0) return { monthlyData: Array.from({ length: 12 }, () => ({ income: 0, spending: 0, investment: 0, year: targetYear })), allTransactions: [], allBudgetItems: [] };
 
@@ -774,9 +806,9 @@ async function fetchAndRenderStatistics(year) {
             const investmentCategory = allExpenseCategories.find(c => c.name === 'Investimentos');
 
             const [{ data: allIncome, error: incomeErr }, { data: allTransactions, error: txErr }, { data: allBudgetItems, error: itemsErr }] = await Promise.all([
-                db.from('income_entries').select('amount, budget_id').in('budget_id', budgetIds),
-                db.from('transactions').select('amount, category_id, budget_id').in('budget_id', budgetIds),
-                db.from('budget_items').select('*, expense_categories(name)').in('budget_id', budgetIds),
+                db.from('financial_income_entries').select('amount, budget_id').in('budget_id', budgetIds),
+                db.from('financial_transactions').select('amount, category_id, budget_id').in('budget_id', budgetIds),
+                db.from('financial_budget_items').select('*, expense_categories:financial_expense_categories(name)').in('budget_id', budgetIds),
             ]);
 
             if (incomeErr || txErr || itemsErr) throw (incomeErr || txErr || itemsErr);
@@ -799,7 +831,7 @@ async function fetchAndRenderStatistics(year) {
         };
 
         if (allExpenseCategories.length === 0) {
-            const { data, error } = await db.from('expense_categories').select('*').eq('user_id', DEMO_USER_ID);
+            const { data, error } = await db.from('financial_expense_categories').select('*').eq('user_id', loggedInUser.id);
             if (error) throw error;
             allExpenseCategories = data;
         }
@@ -809,7 +841,7 @@ async function fetchAndRenderStatistics(year) {
                {data: goals, error: goalsError}] = await Promise.all([
             fetchYearData(year),
             fetchYearData(year - 1),
-            db.from('financial_goals').select('*').eq('user_id', DEMO_USER_ID)
+            db.from('financial_goals').select('*').eq('user_id', loggedInUser.id)
         ]);
         
         if (goalsError) throw goalsError;
@@ -822,7 +854,6 @@ async function fetchAndRenderStatistics(year) {
             totalAnnualSavings: totalAnnualIncome - totalAnnualSpending,
         };
         
-        // Render all components
         renderBehavioralStats(currentYearMonthlyData, allTransactionsForCurrentYear, allBudgetItemsForCurrentYear);
         renderFinancialScore(currentBudgetId ? { totalIncome: currentTotalIncome, totalPlanned: currentSpendingByCategory.reduce((s,c)=>s+c.planned,0), totalSpent: currentSpendingByCategory.reduce((s,c)=>s+c.real,0), spendingByCategory: currentSpendingByCategory } : null);
         renderMonthlyEvolutionChart(currentYearMonthlyData);
@@ -932,8 +963,8 @@ async function saveIncomeChanges() {
         )];
         
         if (sourcesToCreate.length > 0) {
-            const newSourceRecords = sourcesToCreate.map(name => ({ name, user_id: DEMO_USER_ID }));
-            const { data: createdSources, error } = await db.from('income_sources').insert(newSourceRecords).select();
+            const newSourceRecords = sourcesToCreate.map(name => ({ name, user_id: loggedInUser.id }));
+            const { data: createdSources, error } = await db.from('financial_income_sources').insert(newSourceRecords).select();
             if (error) throw new Error(`Erro ao criar nova(s) fonte(s) de receita: ${error.message}`);
             
             createdSources.forEach(s => {
@@ -964,6 +995,10 @@ async function saveIncomeChanges() {
                      toUpdate.push({
                         id: entry.id,
                         amount: entry.amount,
+                        // Add required fields for robust upsert, in case it needs to INSERT
+                        budget_id: currentBudgetId,
+                        source_id: originalEntry.source_id,
+                        received_at: originalEntry.received_at,
                      });
                 }
             }
@@ -973,9 +1008,9 @@ async function saveIncomeChanges() {
         const deletedIds = [...originalIds].filter(id => !currentIdsInDom.has(id));
         
         const promises = [];
-        if (deletedIds.length > 0) promises.push(db.from('income_entries').delete().in('id', deletedIds));
-        if (toUpdate.length > 0) promises.push(db.from('income_entries').upsert(toUpdate));
-        if (toInsert.length > 0) promises.push(db.from('income_entries').insert(toInsert));
+        if (deletedIds.length > 0) promises.push(db.from('financial_income_entries').delete().in('id', deletedIds));
+        if (toUpdate.length > 0) promises.push(db.from('financial_income_entries').upsert(toUpdate));
+        if (toInsert.length > 0) promises.push(db.from('financial_income_entries').insert(toInsert));
 
         const results = await Promise.all(promises);
         results.forEach(res => { if(res.error) throw res.error });
@@ -996,7 +1031,7 @@ async function saveCategoryChanges() {
     try {
         if (!currentBudgetId) throw new Error("ID do Orçamento não foi encontrado.");
 
-        const { data: existingCategories, error: fetchError } = await db.from('expense_categories').select('id, name').eq('user_id', DEMO_USER_ID);
+        const { data: existingCategories, error: fetchError } = await db.from('financial_expense_categories').select('id, name').eq('user_id', loggedInUser.id);
         if (fetchError) throw new Error(`Erro ao buscar categorias existentes: ${fetchError.message}`);
         const categoryNameToIdMap = new Map(existingCategories.map(c => [c.name.toLowerCase(), c.id]));
 
@@ -1024,55 +1059,64 @@ async function saveCategoryChanges() {
         )];
 
         if (newCategoryNames.length > 0) {
-            const newCategoryRecords = newCategoryNames.map(name => ({ name, user_id: DEMO_USER_ID, type: 'nao-essencial' }));
-            const { data: createdCategories, error } = await db.from('expense_categories').insert(newCategoryRecords).select();
+            const newCategoryRecords = newCategoryNames.map(name => ({ name, user_id: loggedInUser.id, type: 'nao-essencial' }));
+            const { data: createdCategories, error } = await db.from('financial_expense_categories').insert(newCategoryRecords).select();
             if (error) throw new Error(`Erro ao criar nova(s) categoria(s): ${error.message}`);
             createdCategories.forEach(c => categoryNameToIdMap.set(c.name.toLowerCase(), c.id));
         }
         
-        const promises = [];
-
-        const categoryIdsInDom = new Set(itemsFromDom.map(item => item.categoryId).filter(Boolean));
-        const categoriesToDelete = currentSpendingByCategory
-            .filter(cat => !categoryIdsInDom.has(cat.category_id))
-            .map(cat => cat.category_id);
-
-        if (categoriesToDelete.length > 0) {
-            for (const catId of categoriesToDelete) {
-                promises.push(db.rpc('remove_category_from_budget', { p_budget_id: currentBudgetId, p_category_id: catId }));
-            }
-        }
-
-        const budgetItemsPayload = itemsFromDom
-            .map(item => {
-                const categoryId = item.isNew
-                    ? categoryNameToIdMap.get(item.categoryName.toLowerCase())
-                    : item.categoryId;
-                
-                if (!categoryId) return null;
-
-                return {
+        const itemsToUpsert = [];
+        const transactionsToCreate = [];
+        const categoryIdsInDom = new Set();
+        
+        for (const item of itemsFromDom) {
+            const categoryId = item.isNew
+                ? categoryNameToIdMap.get(item.categoryName.toLowerCase())
+                : item.categoryId;
+            
+            if (categoryId) {
+                categoryIdsInDom.add(categoryId);
+                itemsToUpsert.push({
+                    id: item.isNew ? undefined : item.id,
+                    budget_id: currentBudgetId,
                     category_id: categoryId,
                     planned_amount: item.plannedAmount,
-                    real_amount: item.realAmount
-                };
-            })
-            .filter(Boolean);
-
-        if (budgetItemsPayload.length > 0) {
-            promises.push(db.rpc('save_all_budget_changes', {
-                p_budget_id: currentBudgetId,
-                p_items_to_update: budgetItemsPayload
-            }));
-        }
-
-        const results = await Promise.all(promises);
-        for (const res of results) {
-            if (res.error) {
-                throw new Error(`Database operation failed: ${res.error.message}`);
+                });
+                if (item.realAmount > 0) {
+                     transactionsToCreate.push({
+                         budget_id: currentBudgetId,
+                         category_id: categoryId,
+                         amount: item.realAmount,
+                         description: 'Ajuste de Gasto Real'
+                     });
+                }
             }
         }
+        
+        const originalCategoryIds = new Set(currentSpendingByCategory.map(cat => cat.category_id));
+        const deletedCategoryIds = [...originalCategoryIds].filter(id => !categoryIdsInDom.has(id));
+        
+        const categoriesToClearTransactions = [...new Set([...deletedCategoryIds, ...itemsToUpsert.map(i => i.category_id)])];
+        if (categoriesToClearTransactions.length > 0) {
+            const { error } = await db.from('financial_transactions').delete().eq('budget_id', currentBudgetId).in('category_id', categoriesToClearTransactions);
+            if(error) throw error;
+        }
 
+        if (deletedCategoryIds.length > 0) {
+             const { error } = await db.from('financial_budget_items').delete().eq('budget_id', currentBudgetId).in('category_id', deletedCategoryIds);
+             if(error) throw error;
+        }
+        
+        if (itemsToUpsert.length > 0) {
+             const { error } = await db.from('financial_budget_items').upsert(itemsToUpsert, { onConflict: 'budget_id, category_id', ignoreDuplicates: false });
+             if(error) throw error;
+        }
+
+        if (transactionsToCreate.length > 0) {
+            const { error } = await db.from('financial_transactions').insert(transactionsToCreate);
+            if(error) throw error;
+        }
+        
         toggleCategoriesEditMode(false);
         await fetchAndRenderDashboard(currentBudgetId);
         lastRenderedStatsYear = null; // Force refresh
@@ -1242,7 +1286,7 @@ async function handleAddGoal(e) {
             goal_type,
             target_amount,
             target_date,
-            user_id: DEMO_USER_ID,
+            user_id: loggedInUser.id,
         });
         if (error) throw error;
         closeGoalModal();
@@ -1261,7 +1305,7 @@ async function handleDeleteGoal(e) {
     if (!confirm('Tem certeza que deseja excluir esta meta?')) return;
 
     try {
-        const { error } = await db.from('financial_goals').delete().eq('id', goalId);
+        const { error } = await db.from('financial_goals').delete().eq('id', goalId).eq('user_id', loggedInUser.id);
         if (error) throw error;
         await fetchAndRenderStatistics(parseInt(yearFilter.value, 10));
     } catch(error) {
@@ -1286,14 +1330,14 @@ function populateFilters() {
 }
 
 async function createBlankBudgetForPeriod(month, year) {
-  const { data: budget, error: budgetError } = await db.from('budgets').insert({
+  const { data: budget, error: budgetError } = await db.from('financial_budgets').insert({
       month,
       year,
-      user_id: DEMO_USER_ID,
+      user_id: loggedInUser.id,
   }).select().single();
   if (budgetError) throw new Error(`Erro ao criar novo orçamento: ${budgetError.message}`);
 
-  const { data: categories, error: catError } = await db.from('expense_categories').select('id').eq('user_id', DEMO_USER_ID);
+  const { data: categories, error: catError } = await db.from('financial_expense_categories').select('id').eq('user_id', loggedInUser.id);
   if (catError) throw new Error(`Erro ao buscar categorias para novo orçamento: ${catError.message}`);
 
   if (categories && categories.length > 0) {
@@ -1302,7 +1346,7 @@ async function createBlankBudgetForPeriod(month, year) {
       category_id: cat.id,
       planned_amount: 0,
     }));
-    const { error: itemsError } = await db.from('budget_items').insert(newBudgetItems);
+    const { error: itemsError } = await db.from('financial_budget_items').insert(newBudgetItems);
     if (itemsError) throw itemsError;
   }
   
@@ -1310,8 +1354,8 @@ async function createBlankBudgetForPeriod(month, year) {
 }
 
 async function findOrCreateBudgetForPeriod(month, year) {
-  const { data, error } = await db.from('budgets').select('id')
-      .eq('user_id', DEMO_USER_ID)
+  const { data, error } = await db.from('financial_budgets').select('id')
+      .eq('user_id', loggedInUser.id)
       .eq('month', month)
       .eq('year', year)
       .limit(1)
@@ -1338,7 +1382,7 @@ async function handleFilterChange() {
             await fetchAndRenderDashboard(budgetId);
         }
         
-        lastRenderedStatsYear = null; // Force refresh stats if year changes
+        lastRenderedStatsYear = null; 
         if (activeView === 'statistics') {
             await fetchAndRenderStatistics(selectedYear);
         }
@@ -1362,7 +1406,7 @@ async function initializeDashboard() {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+function startApp() {
     initializeDashboard();
 
     // --- MAIN EVENT LISTENERS ---
@@ -1427,4 +1471,96 @@ document.addEventListener('DOMContentLoaded', () => {
     cancelGoalModalButton.addEventListener('click', closeGoalModal);
     addGoalFormModal.addEventListener('submit', handleAddGoal);
     goalsListContainer.addEventListener('click', handleDeleteGoal);
+}
+
+async function handleLogin(e) {
+    e.preventDefault();
+    loginError.classList.add('hidden');
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!username || !password) {
+        loginError.textContent = 'Usuário e senha são obrigatórios.';
+        loginError.classList.remove('hidden');
+        return;
+    }
+
+    try {
+        const { data: user, error } = await db
+            .from('financial_users')
+            .select('*')
+            .eq('username', username)
+            .eq('password', password) // In a real app, the password must be hashed!
+            .single();
+
+        // Case 1: Supabase returns a "clean" error (e.g., user not found)
+        if (error) {
+            if (error.code === 'PGRST116') { // "Not Found" because .single() failed
+                loginError.textContent = 'Usuário ou senha inválidos.';
+                loginError.classList.remove('hidden');
+                return;
+            }
+            // For other known DB errors, throw them to be handled by the catch block
+            throw error;
+        } 
+        
+        // Case 2: Successful login
+        if (user) {
+            loggedInUser = user;
+            document.getElementById('user-greeting').textContent = `Bem-vindo(a), ${user.username}!`;
+            loginView.classList.add('hidden');
+            appContainer.classList.remove('hidden');
+            startApp();
+        } else {
+            // This case is a fallback, usually covered by error.code PGRST116
+            loginError.textContent = 'Usuário ou senha inválidos.';
+            loginError.classList.remove('hidden');
+        }
+
+    } catch (err) {
+        // Case 3: A runtime error occurred (network, config, unexpected DB error)
+        console.error('Login error object:', err);
+        let errorMessage = 'Ocorreu um erro inesperado. Tente novamente.';
+
+        if (err && typeof err === 'object') {
+            // Most specific errors first
+            if (err.code === '42P01') { // undefined_table
+                errorMessage = 'Erro de Configuração: A tabela de usuários (`financial_users`) não foi encontrada. Por favor, execute o script SQL mais recente para criar as tabelas.';
+            } 
+            // Handle network errors (often show up as "Failed to fetch")
+            else if (typeof err.message === 'string' && err.message.toLowerCase().includes('failed to fetch')) {
+                errorMessage = 'Erro de Conexão: Não foi possível se comunicar com o banco de dados. Verifique sua conexão com a internet e as configurações do Supabase (URL/Chave).';
+            }
+            // Generic handler for other PostgREST errors that have a message
+            else if (typeof err.message === 'string' && err.message) {
+                errorMessage = `Erro no Servidor: ${err.message}`;
+            } 
+            // Fallback for errors that might only have a details
+            else if (typeof err.details === 'string' && err.details) {
+                errorMessage = `Detalhes do Erro: ${err.details}`;
+            }
+        } else if (typeof err === 'string' && err) {
+            errorMessage = err;
+        }
+
+        loginError.textContent = errorMessage;
+        loginError.classList.remove('hidden');
+    }
+}
+
+
+function handleLogout() {
+    loggedInUser = null;
+    appContainer.classList.add('hidden');
+    loginView.classList.remove('hidden');
+    loginForm.reset();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    if(loginForm) {
+      loginForm.addEventListener('submit', handleLogin);
+    }
+    if(logoutButton) {
+        logoutButton.addEventListener('click', handleLogout);
+    }
 });

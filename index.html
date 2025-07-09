@@ -61,352 +61,384 @@
 <link rel="stylesheet" href="/index.css">
 </head>
   <body class="bg-brand-background text-brand-text-primary font-sans">
-    <div id="loader-container" class="fixed inset-0 bg-brand-background bg-opacity-80 flex justify-center items-center z-50">
-      <div id="loader"></div>
+    <div id="login-view" class="min-h-screen flex items-center justify-center p-4">
+        <div class="w-full max-w-sm">
+            <div class="text-center mb-8">
+                <span class="text-6xl" role="img" aria-label="Money Bag Emoji">💰</span>
+                <h1 class="text-3xl font-bold text-brand-text-primary mt-4">Dashboard Financeiro</h1>
+                <p class="text-brand-text-secondary">Faça login para continuar</p>
+            </div>
+            <div class="bg-brand-card p-8 rounded-xl shadow-lg">
+                <form id="login-form">
+                    <div class="space-y-6">
+                        <div>
+                            <label for="username" class="block mb-2 text-sm font-medium text-brand-text-secondary">Usuário</label>
+                            <input type="text" id="username" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="henri" required aria-label="Username">
+                        </div>
+                        <div>
+                            <label for="password" class="block mb-2 text-sm font-medium text-brand-text-secondary">Senha</label>
+                            <input type="password" id="password" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="••••" required aria-label="Password">
+                        </div>
+                    </div>
+                    <div id="login-error" class="text-brand-red text-sm text-center mt-4 hidden" role="alert">Usuário ou senha inválidos.</div>
+                    <div class="mt-8">
+                        <button type="submit" class="w-full bg-brand-accent hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors">Entrar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
-    <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pb-24">
-      <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-        <div>
-          <h1 class="text-2xl sm:text-3xl font-bold text-brand-text-primary">Dashboard Financeiro</h1>
-          <p class="text-sm text-brand-text-secondary mt-1">Controle suas finanças de forma inteligente</p>
-        </div>
-        <div class="flex items-center gap-2 mt-4 sm:mt-0">
-          <select id="month-filter" class="bg-brand-card border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5"></select>
-          <select id="year-filter" class="bg-brand-card border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5"></select>
-        </div>
-      </header>
-      
-      <div id="dashboard-view" class="view mt-8 space-y-8">
-        <!-- Section: Receitas e Saldo -->
-        <section id="income-section-wrapper">
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">💰 Receitas e Saldo</h2>
-              <div id="income-edit-controls">
-                <button id="edit-income-button" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-brand-text-secondary font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
-                    Editar
-                </button>
-                <div id="income-save-cancel-buttons" class="hidden flex space-x-2">
-                    <button id="save-income-button" class="flex items-center gap-2 bg-brand-green hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
-                        Salvar
-                    </button>
-                    <button id="cancel-income-button" class="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
-                        Cancelar
-                    </button>
-                </div>
-            </div>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div id="income-card-mid" class="bg-brand-card p-6 rounded-xl h-full flex flex-col"></div>
-            <div id="income-card-end" class="bg-brand-card p-6 rounded-xl h-full flex flex-col"></div>
+    <div id="app-container" class="hidden">
+      <div id="loader-container" class="fixed inset-0 bg-brand-background bg-opacity-80 flex justify-center items-center z-50">
+        <div id="loader"></div>
+      </div>
 
-            <div class="relative p-6 rounded-xl text-white bg-brand-green flex flex-col">
-              <span class="absolute top-6 right-6 text-2xl">💰</span>
-              <p class="text-base font-medium">Total Líquido</p>
-              <p class="text-3xl font-bold my-2" id="total-liquid">R$ 0,00</p>
-              <p class="text-sm opacity-80">Receita total mensal</p>
-            </div>
-            <div class="relative p-6 rounded-xl text-white bg-brand-accent flex flex-col">
-              <span class="absolute top-6 right-6 text-2xl">👛</span>
-              <p class="text-base font-medium">Saldo Restante</p>
-              <p class="text-3xl font-bold my-2" id="saldo-restante">R$ 0,00</p>
-              <p class="text-sm opacity-80">Após todos os gastos</p>
-            </div>
+      <div class="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 pb-24">
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+          <div>
+            <h1 class="text-2xl sm:text-3xl font-bold text-brand-text-primary">Dashboard Financeiro</h1>
+            <p id="user-greeting" class="text-sm text-brand-text-secondary mt-1">Controle suas finanças de forma inteligente</p>
           </div>
-        </section>
-
-        <!-- Section: Gastos por Categoria -->
-        <section id="category-section-wrapper">
+          <div class="flex items-center gap-2 sm:gap-4 mt-4 sm:mt-0">
+            <select id="month-filter" class="bg-brand-card border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5"></select>
+            <select id="year-filter" class="bg-brand-card border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5"></select>
+            <button id="logout-button" class="bg-brand-red hover:bg-red-600 text-white font-semibold py-2 px-3 rounded-lg transition-colors text-sm flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-log-out"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                Sair
+            </button>
+          </div>
+        </header>
+        
+        <div id="dashboard-view" class="view mt-8 space-y-8">
+          <!-- Section: Receitas e Saldo -->
+          <section id="income-section-wrapper">
             <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📊 Gastos por Categoria</h2>
-              <div id="category-edit-controls">
-                  <button id="edit-categories-button" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-brand-text-secondary font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">💰 Receitas e Saldo</h2>
+                <div id="income-edit-controls">
+                  <button id="edit-income-button" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-brand-text-secondary font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
                       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
                       Editar
                   </button>
-                  <div id="category-save-cancel-buttons" class="hidden flex space-x-2">
-                      <button id="save-categories-button" class="flex items-center gap-2 bg-brand-green hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
+                  <div id="income-save-cancel-buttons" class="hidden flex space-x-2">
+                      <button id="save-income-button" class="flex items-center gap-2 bg-brand-green hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
                           Salvar
                       </button>
-                      <button id="cancel-categories-button" class="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
+                      <button id="cancel-income-button" class="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                           Cancelar
                       </button>
                   </div>
               </div>
-          </div>
-            <div id="category-cards-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <!-- Dynamic category cards will be inserted here -->
             </div>
-        </section>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div id="income-card-mid" class="bg-brand-card p-6 rounded-xl h-full flex flex-col"></div>
+              <div id="income-card-end" class="bg-brand-card p-6 rounded-xl h-full flex flex-col"></div>
 
-        <!-- Section: Análise Visual -->
-        <section>
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📈 Análise Visual</h2>
-          </div>
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div class="bg-brand-card p-6 rounded-xl">
-              <h3 class="font-semibold text-brand-text-primary">Distribuição Planejada</h3>
-              <div class="h-[300px] flex flex-col items-center justify-center">
-                <div class="relative flex items-center justify-center">
-                  <div id="pie-chart" class="flex items-center justify-center">
-                      <div class="absolute w-[120px] h-[120px] bg-brand-card rounded-full"></div>
-                  </div>
-                </div>
-                <ul id="pie-chart-legend" class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-6">
-                  <!-- Legend items will be generated here -->
-                </ul>
+              <div class="relative p-6 rounded-xl text-white bg-brand-green flex flex-col">
+                <span class="absolute top-6 right-6 text-2xl">💰</span>
+                <p class="text-base font-medium">Total Líquido</p>
+                <p class="text-3xl font-bold my-2" id="total-liquid">R$ 0,00</p>
+                <p class="text-sm opacity-80">Receita total mensal</p>
+              </div>
+              <div class="relative p-6 rounded-xl text-white bg-brand-accent flex flex-col">
+                <span class="absolute top-6 right-6 text-2xl">👛</span>
+                <p class="text-base font-medium">Saldo Restante</p>
+                <p class="text-3xl font-bold my-2" id="saldo-restante">R$ 0,00</p>
+                <p class="text-sm opacity-80">Após todos os gastos</p>
               </div>
             </div>
-            <div class="bg-brand-card p-6 rounded-xl">
-              <h3 class="font-semibold text-brand-text-primary">Planejado vs Real</h3>
-              <div class="h-[300px] flex items-end gap-4 sm:gap-6 justify-center pt-8 pr-4">
-                  <!-- Y-axis labels -->
-                  <div id="bar-chart-y-axis" class="h-full flex flex-col justify-between text-right text-xs text-brand-text-secondary pr-2 border-r border-slate-700">
-                      <!-- Y-axis labels generated here -->
-                  </div>
-                  <!-- Chart bars -->
-                  <div id="bar-chart-bars" class="flex-1 flex h-full items-end justify-around">
-                    <!-- Bar groups will be generated here -->
-                  </div>
-              </div>
-              <div class="flex justify-center items-center gap-6 mt-4 text-sm text-brand-text-secondary">
-                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-sm bg-brand-accent"></div>Planejado</div>
-                <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-sm bg-brand-green"></div>Real</div>
-              </div>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <!-- Section: Resumo do Mês -->
-        <section>
-            <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📋 Resumo do Mês</h2>
-          </div>
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div class="bg-brand-card p-6 rounded-xl flex items-center gap-6">
-              <div class="p-3 rounded-lg bg-blue-500/20 text-blue-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
-              </div>
-              <div>
-                <p class="text-brand-text-secondary">Total Planejado</p>
-                <p class="text-2xl font-bold my-1" id="summary-planned">R$ 0,00</p>
-                <p class="text-sm text-brand-text-secondary">Orçamento definido</p>
-              </div>
-            </div>
-            <div class="bg-brand-card p-6 rounded-xl flex items-center gap-6">
-              <div class="p-3 rounded-lg bg-red-500/20 text-red-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/><path d="M4 6h16"/></svg>
-              </div>
-              <div>
-                <p class="text-brand-text-secondary">Total Gasto</p>
-                <p class="text-2xl font-bold my-1" id="summary-spent">R$ 0,00</p>
-                <p class="text-sm text-brand-text-secondary">Valor efetivamente gasto</p>
-              </div>
-            </div>
-            <div class="bg-brand-card p-6 rounded-xl flex items-center gap-6">
-              <div class="p-3 rounded-lg bg-green-500/20 text-green-400">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v4"/><path d="M12 15V3"/><path d="m9 6 3-3 3 3"/></svg>
-              </div>
-              <div>
-                <p class="text-brand-text-secondary">Variação</p>
-                <p class="text-2xl font-bold my-1" id="summary-variation">R$ 0,00</p>
-                <p class="text-sm text-brand-text-secondary" id="summary-variation-text">...</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div id="dashboard-actions" class="mt-8">
-          <!-- "Copy from previous month" button will be inserted here -->
-        </div>
-      </div>
-      
-      <div id="statistics-view" class="view hidden mt-8 space-y-8">
-        
-        <!-- Behavioral Insights & Score -->
-        <section id="annual-insights-section" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="lg:col-span-2 bg-brand-card p-6 rounded-xl">
-             <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">💡 Insights do Ano</h2>
-             <div id="behavioral-stats-container" class="grid grid-cols-2 gap-4">
-                <!-- Behavioral stats cards will be inserted here -->
-             </div>
-          </div>
-           <div id="financial-score-container" class="bg-brand-card p-6 rounded-xl flex flex-col items-center justify-center">
-                <!-- Financial score will be inserted here -->
-           </div>
-        </section>
-
-        <!-- Monthly Evolution Chart -->
-        <section id="monthly-evolution-section">
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">🧠 Evolução Mensal</h2>
-            <div class="bg-brand-card p-6 rounded-xl">
-                <canvas id="monthly-evolution-chart" style="height: 300px;"></canvas>
-            </div>
-        </section>
-
-        <!-- Projections and Goals -->
-        <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">🔮 Projeções e Destaques</h2>
-             <div class="space-y-6">
-                <div id="future-projection-container">
-                    <!-- Future projection card will be inserted here -->
-                </div>
-                <div id="highlight-months-container" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    <!-- Highlight month cards will be inserted here -->
-                </div>
-             </div>
-          </div>
-          <div>
+          <!-- Section: Gastos por Categoria -->
+          <section id="category-section-wrapper">
               <div class="flex justify-between items-center mb-4">
-                  <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📈 Progresso de Metas</h2>
-                  <button id="add-goal-button" class="flex items-center gap-2 bg-brand-accent hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
-                      Nova Meta
-                  </button>
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📊 Gastos por Categoria</h2>
+                <div id="category-edit-controls">
+                    <button id="edit-categories-button" class="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-brand-text-secondary font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-pencil"><path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>
+                        Editar
+                    </button>
+                    <div id="category-save-cancel-buttons" class="hidden flex space-x-2">
+                        <button id="save-categories-button" class="flex items-center gap-2 bg-brand-green hover:bg-green-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
+                            Salvar
+                        </button>
+                        <button id="cancel-categories-button" class="flex items-center gap-2 bg-brand-red hover:bg-red-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            Cancelar
+                        </button>
+                    </div>
+                </div>
+            </div>
+              <div id="category-cards-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Dynamic category cards will be inserted here -->
               </div>
-              <div id="goals-container" class="bg-brand-card p-6 rounded-xl space-y-4 min-h-[200px]">
-                  <div id="goals-list" class="space-y-4">
-                      <!-- Goal items will be inserted here -->
+          </section>
+
+          <!-- Section: Análise Visual -->
+          <section>
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📈 Análise Visual</h2>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div class="bg-brand-card p-6 rounded-xl">
+                <h3 class="font-semibold text-brand-text-primary">Distribuição Planejada</h3>
+                <div class="h-[300px] flex flex-col items-center justify-center">
+                  <div class="relative flex items-center justify-center">
+                    <div id="pie-chart" class="flex items-center justify-center">
+                        <div class="absolute w-[120px] h-[120px] bg-brand-card rounded-full"></div>
+                    </div>
+                  </div>
+                  <ul id="pie-chart-legend" class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-6">
+                    <!-- Legend items will be generated here -->
+                  </ul>
+                </div>
+              </div>
+              <div class="bg-brand-card p-6 rounded-xl">
+                <h3 class="font-semibold text-brand-text-primary">Planejado vs Real</h3>
+                <div class="h-[300px] flex items-end gap-4 sm:gap-6 justify-center pt-8 pr-4">
+                    <!-- Y-axis labels -->
+                    <div id="bar-chart-y-axis" class="h-full flex flex-col justify-between text-right text-xs text-brand-text-secondary pr-2 border-r border-slate-700">
+                        <!-- Y-axis labels generated here -->
+                    </div>
+                    <!-- Chart bars -->
+                    <div id="bar-chart-bars" class="flex-1 flex h-full items-end justify-around">
+                      <!-- Bar groups will be generated here -->
+                    </div>
+                </div>
+                <div class="flex justify-center items-center gap-6 mt-4 text-sm text-brand-text-secondary">
+                  <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-sm bg-brand-accent"></div>Planejado</div>
+                  <div class="flex items-center gap-2"><div class="w-3 h-3 rounded-sm bg-brand-green"></div>Real</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Section: Resumo do Mês -->
+          <section>
+              <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📋 Resumo do Mês</h2>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div class="bg-brand-card p-6 rounded-xl flex items-center gap-6">
+                <div class="p-3 rounded-lg bg-blue-500/20 text-blue-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+                </div>
+                <div>
+                  <p class="text-brand-text-secondary">Total Planejado</p>
+                  <p class="text-2xl font-bold my-1" id="summary-planned">R$ 0,00</p>
+                  <p class="text-sm text-brand-text-secondary">Orçamento definido</p>
+                </div>
+              </div>
+              <div class="bg-brand-card p-6 rounded-xl flex items-center gap-6">
+                <div class="p-3 rounded-lg bg-red-500/20 text-red-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/><path d="M4 6h16"/></svg>
+                </div>
+                <div>
+                  <p class="text-brand-text-secondary">Total Gasto</p>
+                  <p class="text-2xl font-bold my-1" id="summary-spent">R$ 0,00</p>
+                  <p class="text-sm text-brand-text-secondary">Valor efetivamente gasto</p>
+                </div>
+              </div>
+              <div class="bg-brand-card p-6 rounded-xl flex items-center gap-6">
+                <div class="p-3 rounded-lg bg-green-500/20 text-green-400">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-4a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v4"/><path d="M12 15V3"/><path d="m9 6 3-3 3 3"/></svg>
+                </div>
+                <div>
+                  <p class="text-brand-text-secondary">Variação</p>
+                  <p class="text-2xl font-bold my-1" id="summary-variation">R$ 0,00</p>
+                  <p class="text-sm text-brand-text-secondary" id="summary-variation-text">...</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div id="dashboard-actions" class="mt-8">
+            <!-- "Copy from previous month" button will be inserted here -->
+          </div>
+        </div>
+        
+        <div id="statistics-view" class="view hidden mt-8 space-y-8">
+          
+          <!-- Behavioral Insights & Score -->
+          <section id="annual-insights-section" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-brand-card p-6 rounded-xl">
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">💡 Insights do Ano</h2>
+              <div id="behavioral-stats-container" class="grid grid-cols-2 gap-4">
+                  <!-- Behavioral stats cards will be inserted here -->
+              </div>
+            </div>
+            <div id="financial-score-container" class="bg-brand-card p-6 rounded-xl flex flex-col items-center justify-center">
+                  <!-- Financial score will be inserted here -->
+            </div>
+          </section>
+
+          <!-- Monthly Evolution Chart -->
+          <section id="monthly-evolution-section">
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">🧠 Evolução Mensal</h2>
+              <div class="bg-brand-card p-6 rounded-xl">
+                  <canvas id="monthly-evolution-chart" style="height: 300px;"></canvas>
+              </div>
+          </section>
+
+          <!-- Projections and Goals -->
+          <section class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">🔮 Projeções e Destaques</h2>
+              <div class="space-y-6">
+                  <div id="future-projection-container">
+                      <!-- Future projection card will be inserted here -->
+                  </div>
+                  <div id="highlight-months-container" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <!-- Highlight month cards will be inserted here -->
                   </div>
               </div>
-          </div>
-        </section>
-        
-        <!-- Year over Year Comparison -->
-        <section id="yoy-comparison-section">
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">📅 Comparativo Ano a Ano</h2>
-            <div id="yoy-comparison-container" class="bg-brand-card p-6 rounded-xl">
-                <!-- Y-o-Y comparison table will be inserted here -->
             </div>
-        </section>
-      </div>
-
-      <div id="simulator-view" class="view hidden mt-8 space-y-8">
-        <section>
-          <div class="flex justify-between items-center mb-4">
-            <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">🧮 Simulador de Investimentos</h2>
-          </div>
-          <div class="bg-brand-card p-6 rounded-xl space-y-6">
-            <h3 class="font-semibold text-brand-text-primary text-lg">Se eu guardar R$ X por mês, quanto terei?</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div>
-                <label for="monthly-deposit" class="block mb-2 text-sm font-medium text-brand-text-secondary">Depósito Mensal (R$)</label>
-                <input type="number" id="monthly-deposit" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="500.00" step="0.01">
-              </div>
-              <div>
-                <label for="interest-rate" class="block mb-2 text-sm font-medium text-brand-text-secondary">Taxa de Juros Mensal (%)</label>
-                <input type="number" id="interest-rate" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="1.0" step="0.01">
-              </div>
-              <div>
-                <label for="time-period" class="block mb-2 text-sm font-medium text-brand-text-secondary">Período (meses)</label>
-                <input type="number" id="time-period" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" value="12" step="1">
-              </div>
-            </div>
-            <div class="text-center">
-              <button id="calculate-future-value" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Calcular</button>
-            </div>
-            <div id="future-value-result" class="text-center bg-brand-background p-4 rounded-lg">
-              <p class="text-brand-text-secondary">Valor Futuro</p>
-              <p class="text-2xl font-bold text-brand-green">R$ 0,00</p>
-            </div>
-          </div>
-        </section>
-
-        <section>
-           <div class="bg-brand-card p-6 rounded-xl space-y-6">
-            <h3 class="font-semibold text-brand-text-primary text-lg">Qual valor preciso guardar por mês para atingir uma meta?</h3>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-              <div>
-                <label for="goal-amount" class="block mb-2 text-sm font-medium text-brand-text-secondary">Minha Meta (R$)</label>
-                <input type="number" id="goal-amount" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="10000.00" step="0.01">
-              </div>
-              <div>
-                <label for="goal-interest-rate" class="block mb-2 text-sm font-medium text-brand-text-secondary">Taxa de Juros Mensal (%)</label>
-                <input type="number" id="goal-interest-rate" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="1.0" step="0.01">
-              </div>
-              <div>
-                <label for="goal-time-period" class="block mb-2 text-sm font-medium text-brand-text-secondary">Período (meses)</label>
-                <input type="number" id="goal-time-period" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="12" step="1">
-              </div>
-            </div>
-            <div class="text-center">
-              <button id="calculate-required-deposit" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Calcular</button>
-            </div>
-            <div id="required-deposit-result" class="text-center bg-brand-background p-4 rounded-lg">
-              <p class="text-brand-text-secondary">Depósito Mensal Necessário</p>
-              <p class="text-2xl font-bold text-brand-green">R$ 0,00</p>
-            </div>
-          </div>
-        </section>
-      </div>
-
-    </div>
-
-    <nav class="fixed bottom-0 left-0 right-0 bg-brand-card border-t border-slate-700">
-      <div class="max-w-7xl mx-auto flex justify-around items-center h-16">
-        <button id="nav-dashboard" class="nav-button active flex flex-col items-center justify-center w-full h-full transition-colors duration-200">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-dashboard"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-          <span class="text-xs font-medium mt-1">Dashboard</span>
-        </button>
-        <button id="nav-statistics" class="nav-button text-brand-text-secondary flex flex-col items-center justify-center w-full h-full transition-colors duration-200">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3"><path d="M3 3v18h18"/><path d="M7 16V7"/><path d="M12 16v-4"/><path d="M17 16v-9"/></svg>
-          <span class="text-xs font-medium mt-1">Estatísticas</span>
-        </button>
-        <button id="nav-simulator" class="nav-button text-brand-text-secondary flex flex-col items-center justify-center w-full h-full transition-colors duration-200">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calculator"><rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><line x1="16" x2="12" y1="14" y2="14" /><line x1="12" x2="12" y1="14" y2="18" /><line x1="8" x2="8" y1="10" y2="18" /><line x1="8" x2="12" y1="10" y2="10" /></svg>
-          <span class="text-xs font-medium mt-1">Simulador</span>
-        </button>
-      </div>
-    </nav>
-    
-    <!-- Add Goal Modal -->
-    <div id="add-goal-modal" class="fixed inset-0 bg-black bg-opacity-70 flex justify-center items-center z-50 hidden">
-        <div class="bg-brand-card p-8 rounded-xl shadow-lg w-full max-w-lg m-4">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-semibold text-brand-text-primary">Adicionar Nova Meta Financeira</h2>
-                <button id="close-goal-modal" class="text-brand-text-secondary hover:text-brand-text-primary">&times;</button>
-            </div>
-            <form id="add-goal-form-modal">
-                <div class="space-y-4">
-                    <div>
-                        <label for="goal-description-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Descrição da Meta</label>
-                        <input type="text" id="goal-description-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="Ex: Entrada do apartamento" required>
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div>
-                           <label for="goal-type-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Tipo</label>
-                            <select id="goal-type-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5">
-                                <option value="save_total">Economizar</option>
-                                <option value="invest_total">Investir</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="goal-target-amount-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Valor Alvo (R$)</label>
-                            <input type="number" id="goal-target-amount-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="50000.00" step="0.01" required>
-                        </div>
-                    </div>
-                    <div>
-                        <label for="goal-target-date-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Data Alvo</label>
-                        <input type="date" id="goal-target-date-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" required>
+            <div>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">📈 Progresso de Metas</h2>
+                    <button id="add-goal-button" class="flex items-center gap-2 bg-brand-accent hover:bg-blue-700 text-white font-semibold py-1 px-3 rounded-lg transition-colors text-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+                        Nova Meta
+                    </button>
+                </div>
+                <div id="goals-container" class="bg-brand-card p-6 rounded-xl space-y-4 min-h-[200px]">
+                    <div id="goals-list" class="space-y-4">
+                        <!-- Goal items will be inserted here -->
                     </div>
                 </div>
-                <div class="mt-8 flex justify-end gap-4">
-                    <button type="button" id="cancel-goal-modal" class="bg-slate-600 hover:bg-slate-500 text-white font-bold py-2 px-4 rounded-lg transition-colors">Cancelar</button>
-                    <button type="submit" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">Adicionar Meta</button>
-                </div>
-            </form>
+            </div>
+          </section>
+          
+          <!-- Year over Year Comparison -->
+          <section id="yoy-comparison-section">
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2 mb-4">📅 Comparativo Ano a Ano</h2>
+              <div id="yoy-comparison-container" class="bg-brand-card p-6 rounded-xl">
+                  <!-- Y-o-Y comparison table will be inserted here -->
+              </div>
+          </section>
         </div>
+
+        <div id="simulator-view" class="view hidden mt-8 space-y-8">
+          <section>
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-semibold text-brand-text-primary flex items-center gap-2">🧮 Simulador de Investimentos</h2>
+            </div>
+            <div class="bg-brand-card p-6 rounded-xl space-y-6">
+              <h3 class="font-semibold text-brand-text-primary text-lg">Se eu guardar R$ X por mês, quanto terei?</h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                  <label for="monthly-deposit" class="block mb-2 text-sm font-medium text-brand-text-secondary">Depósito Mensal (R$)</label>
+                  <input type="number" id="monthly-deposit" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="500.00" step="0.01">
+                </div>
+                <div>
+                  <label for="interest-rate" class="block mb-2 text-sm font-medium text-brand-text-secondary">Taxa de Juros Mensal (%)</label>
+                  <input type="number" id="interest-rate" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="1.0" step="0.01">
+                </div>
+                <div>
+                  <label for="time-period" class="block mb-2 text-sm font-medium text-brand-text-secondary">Período (meses)</label>
+                  <input type="number" id="time-period" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" value="12" step="1">
+                </div>
+              </div>
+              <div class="text-center">
+                <button id="calculate-future-value" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Calcular</button>
+              </div>
+              <div id="future-value-result" class="text-center bg-brand-background p-4 rounded-lg">
+                <p class="text-brand-text-secondary">Valor Futuro</p>
+                <p class="text-2xl font-bold text-brand-green">R$ 0,00</p>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <div class="bg-brand-card p-6 rounded-xl space-y-6">
+              <h3 class="font-semibold text-brand-text-primary text-lg">Qual valor preciso guardar por mês para atingir uma meta?</h3>
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                <div>
+                  <label for="goal-amount" class="block mb-2 text-sm font-medium text-brand-text-secondary">Minha Meta (R$)</label>
+                  <input type="number" id="goal-amount" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="10000.00" step="0.01">
+                </div>
+                <div>
+                  <label for="goal-interest-rate" class="block mb-2 text-sm font-medium text-brand-text-secondary">Taxa de Juros Mensal (%)</label>
+                  <input type="number" id="goal-interest-rate" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="1.0" step="0.01">
+                </div>
+                <div>
+                  <label for="goal-time-period" class="block mb-2 text-sm font-medium text-brand-text-secondary">Período (meses)</label>
+                  <input type="number" id="goal-time-period" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg focus:ring-brand-accent focus:border-brand-accent block w-full p-2.5" placeholder="12" step="1">
+                </div>
+              </div>
+              <div class="text-center">
+                <button id="calculate-required-deposit" class="bg-brand-accent hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors">Calcular</button>
+              </div>
+              <div id="required-deposit-result" class="text-center bg-brand-background p-4 rounded-lg">
+                <p class="text-brand-text-secondary">Depósito Mensal Necessário</p>
+                <p class="text-2xl font-bold text-brand-green">R$ 0,00</p>
+              </div>
+            </div>
+          </section>
+        </div>
+        
+        <!-- Goal Modal -->
+        <div id="add-goal-modal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex justify-center items-center z-50 p-4">
+            <div class="bg-brand-card rounded-xl shadow-lg w-full max-w-md">
+                <form id="add-goal-form-modal">
+                    <div class="p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-brand-text-primary">Nova Meta Financeira</h3>
+                            <button type="button" id="close-goal-modal" class="text-brand-text-secondary hover:text-white">&times;</button>
+                        </div>
+                        <div class="space-y-4">
+                            <div>
+                                <label for="goal-description-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Descrição</label>
+                                <input type="text" id="goal-description-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg block w-full p-2.5" required>
+                            </div>
+                            <div>
+                                <label for="goal-type-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Tipo de Meta</label>
+                                <select id="goal-type-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg block w-full p-2.5">
+                                    <option value="save_total">Economizar Total</option>
+                                    <option value="invest_total">Investir Total</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="goal-target-amount-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Valor Alvo (R$)</label>
+                                <input type="number" id="goal-target-amount-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg block w-full p-2.5" step="0.01" required>
+                            </div>
+                            <div>
+                                <label for="goal-target-date-modal" class="block mb-2 text-sm font-medium text-brand-text-secondary">Data Alvo</label>
+                                <input type="date" id="goal-target-date-modal" class="bg-slate-700 border border-slate-600 text-brand-text-primary text-sm rounded-lg block w-full p-2.5" required>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="bg-slate-800 px-6 py-4 rounded-b-xl flex justify-end space-x-3">
+                        <button type="button" id="cancel-goal-modal" class="bg-slate-600 hover:bg-slate-500 text-white font-semibold py-2 px-4 rounded-lg">Cancelar</button>
+                        <button type="submit" class="bg-brand-accent hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg">Salvar Meta</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+      </div>
+
+      <nav class="fixed bottom-0 left-0 right-0 bg-brand-card border-t border-slate-700">
+        <div class="max-w-7xl mx-auto flex justify-around items-center h-16">
+          <button id="nav-dashboard" class="nav-button active flex flex-col items-center justify-center w-full h-full transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-layout-dashboard"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+            <span class="text-xs font-medium mt-1">Dashboard</span>
+          </button>
+          <button id="nav-statistics" class="nav-button text-brand-text-secondary flex flex-col items-center justify-center w-full h-full transition-colors duration-200">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-bar-chart-3"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+            <span class="text-xs font-medium mt-1">Estatísticas</span>
+          </button>
+          <button id="nav-simulator" class="nav-button text-brand-text-secondary flex flex-col items-center justify-center w-full h-full transition-colors duration-200">
+             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-calculator"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg>
+            <span class="text-xs font-medium mt-1">Simulador</span>
+          </button>
+        </div>
+      </nav>
     </div>
-
-
-    <script type="module" src="./index.js"></script>
+    <script type="module" src="/index.js"></script>
   <script type="module" src="/index.tsx"></script>
 </body>
 </html>
